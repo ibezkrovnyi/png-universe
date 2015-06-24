@@ -1,0 +1,40 @@
+{
+  "name": "node-pngjs",
+  "version": "0.0.3",
+  "description": "Simple PNG encoder/decoder",
+  "author": {
+    "name": "K_Reverter",
+    "email": "kunhualqk@gmail.com"
+  },
+  "contributors": [],
+  "homepage": "https://github.com/kunhualqk/node-pngjs/",
+  "keywords": [
+    "png"
+  ],
+  "engines": {
+    "node": "0.8.x"
+  },
+  "main": "./lib/png.js",
+  "gitHead": "d59c0521f4437d730d32f549e0fb877255ceaa23",
+  "_id": "node-pngjs@0.0.3",
+  "scripts": {},
+  "_shasum": "2f801b4cae71ccab5b4fd437e378f87e75fd31dc",
+  "_from": "node-pngjs@*",
+  "_npmVersion": "1.4.28",
+  "_npmUser": {
+    "name": "kunhualqk",
+    "email": "kunhualqk@gmail.com"
+  },
+  "maintainers": [
+    {
+      "name": "kunhualqk",
+      "email": "kunhualqk@gmail.com"
+    }
+  ],
+  "dist": {
+    "shasum": "2f801b4cae71ccab5b4fd437e378f87e75fd31dc",
+    "tarball": "http://registry.npmjs.org/node-pngjs/-/node-pngjs-0.0.3.tgz"
+  },
+  "directories": {},
+  "_resolved": "https://registry.npmjs.org/node-pngjs/-/node-pngjs-0.0.3.tgz"
+}
