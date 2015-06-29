@@ -176,26 +176,7 @@ Filter.prototype._reverseFilterLine = function(rawData) {
 Filter.prototype.filter = function() {
 
     var pxData = this._data,
-		_Bpp=this._Bpp,
-        rawData = new Buffer(((this._width * _Bpp ) + 1) * this._height);
-	if(_Bpp != 4){
-		var pixelMap=pixelBppMap[_Bpp],reversePixelMap={};
-		for(var key in pixelMap){
-			if(!pixelMap.hasOwnProperty(key)
-				|| pixelMap[key]==0xff
-				|| reversePixelMap.hasOwnProperty(pixelMap[key])){continue;}
-			reversePixelMap[pixelMap[key]]=key*1;
-		}
-		var newData=new Buffer(pxData.length/4*_Bpp);
-		for(var i=(pxData.length/4-1);i>=0;i--)
-		{
-			for(var j=0;j<_Bpp;j++)
-			{
-				newData[i*_Bpp+j]=pxData[i*4+reversePixelMap[j]];
-			}
-		}
-		pxData=newData;
-	}
+        rawData = new Buffer(((this._width << 2) + 1) * this._height);
 
     for (var y = 0; y < this._height; y++) {
 
@@ -211,6 +192,7 @@ Filter.prototype.filter = function() {
                 min = sum;
             }
         }
+
         this._filters[sel](pxData, y, rawData);
     }
     return rawData;
@@ -218,8 +200,7 @@ Filter.prototype.filter = function() {
 
 Filter.prototype._filterNone = function(pxData, y, rawData) {
 
-    var Bpp=this._Bpp,
-		pxRowLength = this._width * Bpp,
+    var pxRowLength = this._width << 2,
         rawRowLength = pxRowLength + 1,
         sum = 0;
 
@@ -237,16 +218,16 @@ Filter.prototype._filterNone = function(pxData, y, rawData) {
 
 Filter.prototype._filterSub = function(pxData, y, rawData) {
 
-    var Bpp=this._Bpp,
-		pxRowLength = this._width * Bpp,
+    var pxRowLength = this._width << 2,
         rawRowLength = pxRowLength + 1,
         sum = 0;
+
     if (rawData)
         rawData[y * rawRowLength] = 1;
 
     for (var x = 0; x < pxRowLength; x++) {
 
-        var left = x >= Bpp ? pxData[y * pxRowLength + x - Bpp] : 0,
+        var left = x >= 4 ? pxData[y * pxRowLength + x - 4] : 0,
             val = pxData[y * pxRowLength + x] - left;
 
         if (!rawData) sum += Math.abs(val);
@@ -257,8 +238,7 @@ Filter.prototype._filterSub = function(pxData, y, rawData) {
 
 Filter.prototype._filterUp = function(pxData, y, rawData) {
 
-    var Bpp=this._Bpp,
-		pxRowLength = this._width * Bpp,
+    var pxRowLength = this._width << 2,
         rawRowLength = pxRowLength + 1,
         sum = 0;
 
@@ -278,8 +258,7 @@ Filter.prototype._filterUp = function(pxData, y, rawData) {
 
 Filter.prototype._filterAvg = function(pxData, y, rawData) {
 
-    var Bpp=this._Bpp,
-		pxRowLength = this._width * Bpp,
+    var pxRowLength = this._width << 2,
         rawRowLength = pxRowLength + 1,
         sum = 0;
 
@@ -288,7 +267,7 @@ Filter.prototype._filterAvg = function(pxData, y, rawData) {
 
     for (var x = 0; x < pxRowLength; x++) {
 
-        var left = x >= Bpp ? pxData[y * pxRowLength + x - Bpp] : 0,
+        var left = x >= 4 ? pxData[y * pxRowLength + x - 4] : 0,
             up = y > 0 ? pxData[(y - 1) * pxRowLength + x] : 0,
             val = pxData[y * pxRowLength + x] - ((left + up) >> 1);
 
@@ -300,8 +279,7 @@ Filter.prototype._filterAvg = function(pxData, y, rawData) {
 
 Filter.prototype._filterPaeth = function(pxData, y, rawData) {
 
-    var Bpp=this._Bpp,
-		pxRowLength = this._width * Bpp,
+    var pxRowLength = this._width << 2,
         rawRowLength = pxRowLength + 1,
         sum = 0;
 
@@ -310,9 +288,9 @@ Filter.prototype._filterPaeth = function(pxData, y, rawData) {
 
     for (var x = 0; x < pxRowLength; x++) {
 
-        var left = x >= Bpp ? pxData[y * pxRowLength + x - Bpp] : 0,
+        var left = x >= 4 ? pxData[y * pxRowLength + x - 4] : 0,
             up = y > 0 ? pxData[(y - 1) * pxRowLength + x] : 0,
-            upLeft = x >= Bpp && y > 0 ? pxData[(y - 1) * pxRowLength + x - Bpp] : 0,
+            upLeft = x >= 4 && y > 0 ? pxData[(y - 1) * pxRowLength + x - 4] : 0,
             val = pxData[y * pxRowLength + x] - PaethPredictor(left, up, upLeft);
 
         if (!rawData) sum += Math.abs(val);
