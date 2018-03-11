@@ -1,0 +1,105 @@
+{
+  "name": "png-universe",
+  "version": "0.0.1",
+  "description": "PNG implementation",
+  "license": "MIT",
+  "contributors": [],
+  "homepage": "https://github.com/ibezkrovnyi/png-universe",
+  "main": "dist/umd/png.js",
+  "module": "dist/esm/png.js",
+  "types": "dist/esm/png.d.ts",
+  "scripts": {
+    "prepublish": "npm run build",
+    "test": "npm run lint && jest --maxWorkers=2",
+    "build": "tsc --outDir dist/esm && tsc -m commonjs -t es5 --outDir dist/cjs && rollup -i dist/cjs/index.js -o dist/umd/index.js -f umd -n image-q --config",
+    "test:watch": "jest --watch",
+    "deploy": "npm update && npm run lint && jest && npm run build && npm run gh-pages && npm version patch && git push --follow-tags && npm publish",
+    "lint": "tslint --format verbose --config tslint.json --project tsconfig.json",
+    "gh-pages": "rimraf ./docs && typedoc.cmd src && gh-pages -d docs",
+    "coveralls": "cat ./coverage/lcov.info | node node_modules/.bin/coveralls"
+  },
+  "files": [
+    "dist"
+  ],
+  "jest": {
+    "roots": [
+      "<rootDir>/src",
+      "<rootDir>/tests"
+    ],
+    "globals": {
+      "ts-jest": {
+        "tsConfigFile": "./tests/tsconfig.json",
+        "skipBabel": true
+      }
+    },
+    "transform": {
+      "^.+\\.tsx?$": "ts-jest"
+    },
+    "testRegex": "(test|spec)\\.(jsx?|tsx?)$",
+    "moduleFileExtensions": [
+      "ts",
+      "tsx",
+      "js",
+      "jsx",
+      "json",
+      "node"
+    ],
+    "collectCoverage": true,
+    "coverageReporters": [
+      "lcov",
+      "text-summary",
+      "html"
+    ],
+    "collectCoverageFrom": [
+      "src/**/*.{ts,tsx}"
+    ]
+  },
+  "preferGlobal": false,
+  "keywords": [
+    "png",
+    "png-js",
+    "pngjs",
+    "image",
+    "palette",
+    "color"
+  ],
+  "author": "Igor Bezkrovnyi",
+  "engines": {
+    "node": ">=6.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ibezkrovnyi/png-universe"
+  },
+  "bugs": {
+    "url": "https://github.com/ibezkrovnyi/png-universe/issues"
+  },
+  "devDependencies": {
+    "@ibezkrovnyi/tslint-rules": "0.0.3",
+    "@types/core-js": "0.9.46",
+    "@types/jest": "22.1.4",
+    "@types/pako": "^1.0.0",
+    "@types/pngjs": "3.3.0",
+    "core-js": "2.5.3",
+    "coveralls": "3.0.0",
+    "gh-pages": "1.1.0",
+    "jest": "22.4.0",
+    "pako": "^1.0.6",
+    "pngjs": "3.3.2",
+    "rimraf": "*",
+    "rollup": "0.56.3",
+    "rollup-plugin-commonjs": "8.4.0",
+    "rollup-plugin-local-resolve": "1.0.7",
+    "rollup-plugin-node-resolve": "3.0.3",
+    "ts-jest": "22.4.1",
+    "tslint": "5.9.1",
+    "tslint-config-airbnb": "5.7.0",
+    "tslint-consistent-codestyle": "1.11.1",
+    "tslint-language-service": "0.9.8",
+    "typedoc": "0.11.0",
+    "typescript": "^2.8.0-dev.20180308"
+  },
+  "dependencies": {
+    "@types/node": "9.4.6"
+  }
+}

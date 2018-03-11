@@ -1,0 +1,3 @@
+dist/* linguist-vendored=true
+examples/* linguist-vendored=true
+*.cmd linguist-vendored=true

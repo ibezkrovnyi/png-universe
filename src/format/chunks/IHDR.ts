@@ -1,22 +1,5 @@
-const readUInt32BE = (data: Uint8Array, offset: number) =>
-  data[offset] * 2 ** 24 +
-  data[offset+1] * 2 ** 16 +
-  data[offset+2] * 2 ** 8 +
-  data[offset+3];
-
-const readUInt8 = (data: Uint8Array, offset: number) =>
-  data[offset];
-
-const writeUInt32BE = (data: Uint8Array, offset: number, value: number) => {
-  data[offset] = (value >>> 24);
-  data[offset+1] = (value >>> 16);
-  data[offset+2] = (value >>> 8);
-  data[offset+3] = value;
-}
-
-const writeUInt8 = (data: Uint8Array, offset: number, value: number) => {
-  data[offset] = value;
-}
+import { Chunk } from "./chunk";
+import { assert } from "../../utils";
 
 export const enum ColorTypeMasks {
   NoneMask = 0,
@@ -45,7 +28,7 @@ export interface IHDR {
   /** non-negative non-zero height in px */
   height: number
   
-  /** for indexed-colour images, the number of bits per palette index. For other images, the number of bits per sample in the image */
+  /** for indexed-colour images, the number of bits per palette index (so, 2^bitDepth colors in palette). For other images, the number of bits per sample in the image */
   bitDepth: 1 | 2 | 4 | 8 | 16
   
   /** value denoting how colour and alpha are specified in the PNG image. Colour types are sums of the following values: 1 (palette used), 2 (truecolour used), 4 (alpha used). The permitted values of colour type are 0, 2, 3, 4, and 6. */
@@ -65,27 +48,54 @@ export interface IHDR {
 }
 
 // TODO: add validation of input
-export function readIHDR(data: Uint8Array) {
-  return {
-    width: readUInt32BE(data, 0),
-    height: readUInt32BE(data, 4),
-    depth: readUInt8(data, 8),
-    colorType: readUInt8(data, 9),
-    compression: readUInt8(data, 10),
-    filter: readUInt8(data, 11),
-    interlace: readUInt8(data, 12),
+export function readIHDR(dataView: DataView): IHDR {
+  // const dataView = new DataView(data.buffer, offset, 13);
+  const chunk = {
+    width: dataView.getUint32(0),
+    height: dataView.getUint32(4),
+    bitDepth: dataView.getUint8(8),
+    colorType: dataView.getUint8(9),
+    compression: dataView.getUint8(10),
+    filter: dataView.getUint8(11),
+    interlace: dataView.getUint8(12),
     get sampleDepth() {
       return this.colorType & ColorTypeMasks.PaletteMask ? 8 : this.bitDepth;
     }
   };
+  if (validateIHDR(chunk)) {
+    return chunk;
+  }
+  throw new Error(`Chunk IHDR is not valid`);
 }
 
-export function writeIHDR(data: Uint8Array, chunk: IHDR) {
-  writeUInt32BE(data, 0, chunk.width);
-  writeUInt32BE(data, 4, chunk.height);
-  writeUInt8(data, 8, chunk.bitDepth);
-  writeUInt8(data, 9, chunk.colorType);
-  writeUInt8(data, 10, chunk.compression);
-  writeUInt8(data, 11, chunk.filter);
-  writeUInt8(data, 12, chunk.interlace);
+// TODO: add validation of input
+export function writeIHDR(data: Uint8Array, offset: number, chunk: IHDR) {
+  validateIHDR(chunk);
+  const dataView = new DataView(data.buffer, offset, 13);
+  dataView.setUint32(0, chunk.width);
+  dataView.setUint32(4, chunk.height);
+  dataView.setUint8(8, chunk.bitDepth);
+  dataView.setUint8(9, chunk.colorType);
+  dataView.setUint8(10, chunk.compression);
+  dataView.setUint8(11, chunk.filter);
+  dataView.setUint8(12, chunk.interlace);
+  return 13;
+}
+
+export function validateIHDR(chunkToValidate: any): chunkToValidate is IHDR {
+  const chunk = chunkToValidate as IHDR;
+  assert(chunk.width > 0);
+  assert(chunk.height > 0);
+  switch (chunk.colorType) {
+    case ColorTypes.GreyScale: assert([1,2,4,8,16].includes(chunk.bitDepth)); break;
+    case ColorTypes.TrueColor: assert([8,16].includes(chunk.bitDepth)); break;
+    case ColorTypes.IndexedColor: assert([1,2,4,8].includes(chunk.bitDepth)); break;
+    case ColorTypes.GreyScaleWithAlpha: assert([8,16].includes(chunk.bitDepth)); break;
+    case ColorTypes.TrueColorWithAlpha: assert([8,16].includes(chunk.bitDepth)); break;
+    default: assert();
+  }
+  assert(chunk.compression, 0);
+  assert(chunk.filter, 0);
+  assert([InterlaceMethods.None, InterlaceMethods.Adam7].includes(chunk.interlace));
+  return true;
 }
