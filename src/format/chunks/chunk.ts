@@ -1,6 +1,4 @@
 import { ChunkTypes, ChunkNames } from "./constants";
-import { IHDR } from "./IHDR";
-import { PLTE } from "./PLTE";
 
 export type Chunk = {
   readonly type: ChunkTypes,

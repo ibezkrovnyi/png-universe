@@ -2,7 +2,6 @@ import { ChunkTypes, ChunkNames, signature, Colors } from "./format/chunks/const
 import { Chunk } from "./format/chunks/chunk";
 import { CRC32, crc32 } from "./format/crc";
 import { readIHDR, IHDR, ColorTypeMasks, ColorTypes } from "./format/chunks/IHDR";
-import { readPLTE } from "./format/chunks/PLTE";
 import { Palette } from './models/palette';
 import { parseChunks } from './parser';
 import { assert } from "./utils";
@@ -53,7 +52,7 @@ export class PNGImage {
   }
 
   getImageData() {
-    return this._parsed.imageData;
+    return this._parsed.bitmap.toImageData();
   }
 
   private checkSignature(dataView: DataView) {

@@ -3,12 +3,13 @@ import { Chunk } from "./format/chunks/chunk";
 import { Palette } from "./models/palette";
 import { Bitmap } from "./models/bitmap";
 import { ChunkTypes } from "./format/chunks/constants";
+import { ReverseFilter } from './utils/decodeFilter';
 import * as pako from "pako";
 
 export function parseChunks(chunks: Chunk[]) {
   const IHDR = readIHDR(chunks[0].data);
   const palette = parsePalette(IHDR, chunks);
-  const data = parseData(IHDR, chunks);
+  const data = parseData(IHDR, chunks, palette);
   const bitmap = new Bitmap(IHDR, data, palette);
   return {
     chunks,
@@ -60,7 +61,7 @@ function parseSuggestedPalettes(IHDR: IHDR, chunks: Chunk[]) {
   return palettes.length > 0 ? palettes : undefined;
 }
 
-function parseData(IHDR: IHDR, chunks: Chunk[]) {
+function parseData(IHDR: IHDR, chunks: Chunk[], palette?: Palette) {
   var inflator = new pako.Inflate();
   const IDAT = getChunksByType(chunks, ChunkTypes.IDAT);
   IDAT.forEach((chunk, index, array) => {
@@ -75,5 +76,60 @@ function parseData(IHDR: IHDR, chunks: Chunk[]) {
     throw new Error(inflator.msg);
   }
 
-  return inflator.result as Uint8Array;
+  let result = inflator.result as Uint8Array;
+  result = new ReverseFilter(result, IHDR).outData;
+  //result = IHDR.colorType === ColorTypes.IndexedColor ? indexedToTrueColorWithAlpha(IHDR, result, palette) : result;
+  // const filterReversed = IHDR.colorType === ColorTypes.IndexedColor ? uncompressed : new ReverseFilter(uncompressed, IHDR).outData;
+
+  // const uncompressed = inflator.result as Uint8Array;
+  // return indexedToTrueColorWithAlpha(IHDR, uncompressed, palette);
+  
+
+  // let trueColor = IHDR.colorType === ColorTypes.IndexedColor ? indexedToTrueColorWithAlpha(IHDR, filterReversed, palette) : inflator.result as Uint8Array
+
+  return result;
+}
+
+function indexedToTrueColorWithAlpha(IHDR: IHDR, indexedData: Uint8Array, palette?: Palette) {
+  if (!palette) throw new Error('palette not found');
+  const pixels = IHDR.width * IHDR.height;
+  const data = new Uint8Array(pixels * 4);
+  switch (IHDR.bitDepth) {
+    case 1:
+      // TODO: other bit/sample depth?
+      throw new Error('not implemented yet');
+    case 2:
+      const lineByteLength = Math.ceil(IHDR.width / 4);
+      for (let y = 0; y < IHDR.height; y++) {
+        for (let x = 0; x < IHDR.width; x+=4) {
+          let srcByteOffset = lineByteLength * y + x/4;
+          const uint8 = indexedData[srcByteOffset];
+
+          for (let pixelInGroup = 0; pixelInGroup < 4; pixelInGroup++) {
+            const dstBase = (y * IHDR.width + x + (3-pixelInGroup)) * 4;
+            const colorIndex = (uint8 >> (pixelInGroup*2)) & 3;
+            const color = palette.getColor(colorIndex);
+            data[dstBase + 0] = color.r;
+            data[dstBase + 1] = color.g;
+            data[dstBase + 2] = color.b;
+            data[dstBase + 3] = color.a;
+          }
+        }
+      }
+      break;
+    case 4:
+      // TODO: other bit/sample depth?
+      throw new Error('not implemented yet');
+
+    case 8:
+      for (let index = 0; index < pixels; index++) {
+        const color = palette.getColor(indexedData[index]);
+        data[index * 4 + 0] = color.r;
+        data[index * 4 + 1] = color.g;
+        data[index * 4 + 2] = color.b;
+        data[index * 4 + 3] = color.a;
+      }
+      break;
+  }
+  return data;
 }

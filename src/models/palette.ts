@@ -1,52 +1,55 @@
 import { Chunk } from "../format/chunks/chunk";
 import { Colors } from "../format/chunks/constants";
+import { DataViewStream } from "../utils/stream";
 import { readText, assert, getUint } from "../utils";
 
 export class Palette {
   static fromPLTE(bitDepth: number, PLTE: Chunk, tRNS?: Chunk) {
-    const plteChunkData = PLTE.data;
+    const PLTEStream = new DataViewStream(PLTE.data);
     const maxColors = 2 ** bitDepth;
-    const colors = Math.min(maxColors, plteChunkData.byteLength / 3 | 0);
+    const colors = Math.min(maxColors, PLTEStream.byteLength / 3 | 0);
 
-    const palette = new Uint8Array(colors * 4);
+    const paletteStream = new DataViewStream(new Uint8Array(colors * 4));
     for (let index = 0; index < colors; index++) {
-      palette[index * 4] = plteChunkData.getUint8(index * 3);
-      palette[index * 4 + 1] = plteChunkData.getUint8(index * 3 + 1);
-      palette[index * 4 + 2] = plteChunkData.getUint8(index * 3 + 2);
-      palette[index * 4 + 3] = Colors.Opaque255;
+      paletteStream.writeUint8(PLTEStream.readUint8());
+      paletteStream.writeUint8(PLTEStream.readUint8());
+      paletteStream.writeUint8(PLTEStream.readUint8());
+      paletteStream.writeUint8(Colors.Opaque255);
     }
 
     if (tRNS) {
-      const alphaChunkData = tRNS.data;
-      const alphaColors = Math.min(colors, alphaChunkData.byteLength);
+      const tRNSStream = new DataViewStream(tRNS.data);
+      const alphaColors = Math.min(colors, tRNSStream.byteLength);
+      
+      paletteStream.rewind();
       for (let index = 0; index < alphaColors; index++) {
-        palette[index * 4 + 3] = alphaChunkData.getUint8(index);
+        paletteStream.skip(3);
+        paletteStream.writeUint8(tRNSStream.readUint8());
       }
     }
 
-    return new Palette('Default PLTE Palette', palette);
+    return new Palette('Default PLTE Palette', paletteStream.toUint8Array());
   }
 
   static fromSPLT(sPLT: Chunk) {
-    const spltChunkData = sPLT.data;
-    const name = readText(spltChunkData, 0);
-    
-    // +1 because text is followed by 'null' symbol, +1 for sampleDepth
-    let prefixLength = name.length + 1 + 1;
-    const sampleDepth = spltChunkData.getUint8(name.length + 1);
+    const sPLTStream = new DataViewStream(sPLT.data);
+    const name = sPLTStream.readText();
+    const sampleDepth = sPLTStream.readUint8();
     assert([8, 16].includes(sampleDepth));
+
+    let prefixLength = sPLTStream.currentOffset;
     
-    const sampleBytes = sampleDepth / 2;
+    const sampleBytes = sampleDepth / 8;
     const indexLength = 2 + 4 * sampleBytes;
-    const colors = (spltChunkData.byteLength - prefixLength) / indexLength;
+    const colors = (sPLTStream.byteLength - prefixLength) / indexLength;
 
     let palette = sampleDepth === 8 ? new Uint8Array(colors * 4) : new Uint16Array(colors * 4);
     for (let index = 0; index < colors; index++) {
-      const base = prefixLength + index * indexLength;
-      palette[index * 4 + 0] = getUint(spltChunkData, base + 0 * sampleBytes, sampleDepth);
-      palette[index * 4 + 1] = getUint(spltChunkData, base + 1 * sampleBytes, sampleDepth);
-      palette[index * 4 + 2] = getUint(spltChunkData, base + 2 * sampleBytes, sampleDepth);
-      palette[index * 4 + 3] = getUint(spltChunkData, base + 3 * sampleBytes, sampleDepth);
+      palette[index * 4 + 0] = sPLTStream.readUint(sampleDepth);
+      palette[index * 4 + 1] = sPLTStream.readUint(sampleDepth);
+      palette[index * 4 + 2] = sPLTStream.readUint(sampleDepth);
+      palette[index * 4 + 3] = sPLTStream.readUint(sampleDepth);
+      sPLTStream.skip(2); // frequency
     }
 
     return new Palette(name, palette);

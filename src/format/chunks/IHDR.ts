@@ -49,7 +49,6 @@ export interface IHDR {
 
 // TODO: add validation of input
 export function readIHDR(dataView: DataView): IHDR {
-  // const dataView = new DataView(data.buffer, offset, 13);
   const chunk = {
     width: dataView.getUint32(0),
     height: dataView.getUint32(4),
