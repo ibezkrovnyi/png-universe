@@ -19,7 +19,7 @@ export class Bitmap {
       case ColorTypes.TrueColorWithAlpha:
         // TODO: different Sample depth?
         return this._data;
-        
+
       case ColorTypes.IndexedColor:
         return this._indexedToImageData();
     }
@@ -41,33 +41,66 @@ export class Bitmap {
     if (!this._palette) throw new Error('palette not found');
     const pixels = this._IHDR.width * this._IHDR.height;
     const data = new Uint8Array(pixels * 4);
+    const bytesPerIndex = this._IHDR.bitDepth / 8;
+    const lineByteLength = Math.ceil(this._IHDR.width * bytesPerIndex);
     switch (this._IHDR.bitDepth) {
       case 1:
-      case 2:
-      case 2:
-      const lineByteLength = Math.ceil(this._IHDR.width / 4);
-      for (let y = 0; y < this._IHDR.height; y++) {
-        for (let x = 0; x < this._IHDR.width; x+=4) {
-          let srcByteOffset = lineByteLength * y + x/4;
-          const uint8 = this._data[srcByteOffset];
+        for (let y = 0; y < this._IHDR.height; y++) {
+          for (let x = 0; x < this._IHDR.width; x += 8) {
+            let srcByteOffset = lineByteLength * y + x / 8;
+            const uint8 = this._data[srcByteOffset];
 
-          for (let pixelInGroup = 0; pixelInGroup < 4; pixelInGroup++) {
-            const dstBase = (y * this._IHDR.width + x + (3-pixelInGroup)) * 4;
-            const colorIndex = (uint8 >> (pixelInGroup*2)) & 3;
-            const color = this._palette.getColor(colorIndex);
-            data[dstBase + 0] = color.r;
-            data[dstBase + 1] = color.g;
-            data[dstBase + 2] = color.b;
-            data[dstBase + 3] = color.a;
+            for (let pixelInGroup = 0; pixelInGroup < 8; pixelInGroup++) {
+              const dstBase = (y * this._IHDR.width + x + (7 - pixelInGroup)) * 4;
+              const colorIndex = (uint8 >> pixelInGroup) & 1;
+              const color = this._palette.getColor(colorIndex);
+              data[dstBase + 0] = color.r;
+              data[dstBase + 1] = color.g;
+              data[dstBase + 2] = color.b;
+              data[dstBase + 3] = color.a;
+            }
           }
         }
-      }
-      break;
+        break;
+
+      case 2:
+        for (let y = 0; y < this._IHDR.height; y++) {
+          for (let x = 0; x < this._IHDR.width; x += 4) {
+            let srcByteOffset = lineByteLength * y + x / 4;
+            const uint8 = this._data[srcByteOffset];
+
+            for (let pixelInGroup = 0; pixelInGroup < 4; pixelInGroup++) {
+              const dstBase = (y * this._IHDR.width + x + (3 - pixelInGroup)) * 4;
+              const colorIndex = (uint8 >> (pixelInGroup * 2)) & 3;
+              const color = this._palette.getColor(colorIndex);
+              data[dstBase + 0] = color.r;
+              data[dstBase + 1] = color.g;
+              data[dstBase + 2] = color.b;
+              data[dstBase + 3] = color.a;
+            }
+          }
+        }
+        break;
 
       case 4:
-        // TODO: other bit/sample depth?
-        throw new Error('not implemented yet');
-        
+        for (let y = 0; y < this._IHDR.height; y++) {
+          for (let x = 0; x < this._IHDR.width; x += 2) {
+            let srcByteOffset = lineByteLength * y + x / 2;
+            const uint8 = this._data[srcByteOffset];
+
+            for (let pixelInGroup = 0; pixelInGroup < 2; pixelInGroup++) {
+              const dstBase = (y * this._IHDR.width + x + (1 - pixelInGroup)) * 4;
+              const colorIndex = (uint8 >> (pixelInGroup * 4)) & 15;
+              const color = this._palette.getColor(colorIndex);
+              data[dstBase + 0] = color.r;
+              data[dstBase + 1] = color.g;
+              data[dstBase + 2] = color.b;
+              data[dstBase + 3] = color.a;
+            }
+          }
+        }
+        break;
+
       case 8:
         for (let index = 0; index < pixels; index++) {
           const color = this._palette.getColor(this._data[index]);
