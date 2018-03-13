@@ -76,6 +76,8 @@ function parseData(IHDR: IHDR, chunks: Chunk[], palette?: Palette) {
     throw new Error(inflator.msg);
   }
 
+  // let result = require('browserify-zlib').inflateSync(Buffer.concat(IDAT.map(chunk => new Buffer(chunk.data.buffer))));
+
   let result = inflator.result as Uint8Array;
   result = new ReverseFilter(result, IHDR).outData;
   //result = IHDR.colorType === ColorTypes.IndexedColor ? indexedToTrueColorWithAlpha(IHDR, result, palette) : result;

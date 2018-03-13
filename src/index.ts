@@ -2,10 +2,11 @@ import { PNGImage } from './image';
 
 async function run() {
 
-  //return fetch('/images/indexed.png');
+  // return fetch('/images/indexed.png');
   // return fetch('/images/baby.png');
   // return fetch('/images/baby-greyscale-1bit.png');
-  return fetch('/images/baby-greyscale-2bits.png');
+  // return fetch('/images/baby-greyscale-4bits.png');
+  return fetch('/images/baby-color-65536.png');
 }
 
 run().then(response => response.blob()).then(blob => {

@@ -45,52 +45,18 @@ export class Bitmap {
     const lineByteLength = Math.ceil(this._IHDR.width * bytesPerIndex);
     switch (this._IHDR.bitDepth) {
       case 1:
-        for (let y = 0; y < this._IHDR.height; y++) {
-          for (let x = 0; x < this._IHDR.width; x += 8) {
-            let srcByteOffset = lineByteLength * y + x / 8;
-            const uint8 = this._data[srcByteOffset];
-
-            for (let pixelInGroup = 0; pixelInGroup < 8; pixelInGroup++) {
-              const dstBase = (y * this._IHDR.width + x + (7 - pixelInGroup)) * 4;
-              const colorIndex = (uint8 >> pixelInGroup) & 1;
-              const color = this._palette.getColor(colorIndex);
-              data[dstBase + 0] = color.r;
-              data[dstBase + 1] = color.g;
-              data[dstBase + 2] = color.b;
-              data[dstBase + 3] = color.a;
-            }
-          }
-        }
-        break;
-
       case 2:
-        for (let y = 0; y < this._IHDR.height; y++) {
-          for (let x = 0; x < this._IHDR.width; x += 4) {
-            let srcByteOffset = lineByteLength * y + x / 4;
-            const uint8 = this._data[srcByteOffset];
-
-            for (let pixelInGroup = 0; pixelInGroup < 4; pixelInGroup++) {
-              const dstBase = (y * this._IHDR.width + x + (3 - pixelInGroup)) * 4;
-              const colorIndex = (uint8 >> (pixelInGroup * 2)) & 3;
-              const color = this._palette.getColor(colorIndex);
-              data[dstBase + 0] = color.r;
-              data[dstBase + 1] = color.g;
-              data[dstBase + 2] = color.b;
-              data[dstBase + 3] = color.a;
-            }
-          }
-        }
-        break;
-
       case 4:
+        const pixelsPerByte = 8 / this._IHDR.bitDepth;
+        const indexMask = (2 ** this._IHDR.bitDepth) - 1;
         for (let y = 0; y < this._IHDR.height; y++) {
-          for (let x = 0; x < this._IHDR.width; x += 2) {
-            let srcByteOffset = lineByteLength * y + x / 2;
+          for (let x = 0; x < this._IHDR.width; x += pixelsPerByte) {
+            let srcByteOffset = lineByteLength * y + x / pixelsPerByte;
             const uint8 = this._data[srcByteOffset];
 
-            for (let pixelInGroup = 0; pixelInGroup < 2; pixelInGroup++) {
-              const dstBase = (y * this._IHDR.width + x + (1 - pixelInGroup)) * 4;
-              const colorIndex = (uint8 >> (pixelInGroup * 4)) & 15;
+            for (let pixelInGroup = 0; pixelInGroup < pixelsPerByte; pixelInGroup++) {
+              const dstBase = (y * this._IHDR.width + x + (pixelsPerByte - 1 - pixelInGroup)) * 4;
+              const colorIndex = (uint8 >> (pixelInGroup * this._IHDR.bitDepth)) & indexMask;
               const color = this._palette.getColor(colorIndex);
               data[dstBase + 0] = color.r;
               data[dstBase + 1] = color.g;
@@ -100,6 +66,44 @@ export class Bitmap {
           }
         }
         break;
+
+      // case 2:
+      //   for (let y = 0; y < this._IHDR.height; y++) {
+      //     for (let x = 0; x < this._IHDR.width; x += 4) {
+      //       let srcByteOffset = lineByteLength * y + x / 4;
+      //       const uint8 = this._data[srcByteOffset];
+
+      //       for (let pixelInGroup = 0; pixelInGroup < 4; pixelInGroup++) {
+      //         const dstBase = (y * this._IHDR.width + x + (3 - pixelInGroup)) * 4;
+      //         const colorIndex = (uint8 >> (pixelInGroup * 2)) & 3;
+      //         const color = this._palette.getColor(colorIndex);
+      //         data[dstBase + 0] = color.r;
+      //         data[dstBase + 1] = color.g;
+      //         data[dstBase + 2] = color.b;
+      //         data[dstBase + 3] = color.a;
+      //       }
+      //     }
+      //   }
+      //   break;
+
+      // case 4:
+      //   for (let y = 0; y < this._IHDR.height; y++) {
+      //     for (let x = 0; x < this._IHDR.width; x += 2) {
+      //       let srcByteOffset = lineByteLength * y + x / 2;
+      //       const uint8 = this._data[srcByteOffset];
+
+      //       for (let pixelInGroup = 0; pixelInGroup < 2; pixelInGroup++) {
+      //         const dstBase = (y * this._IHDR.width + x + (1 - pixelInGroup)) * 4;
+      //         const colorIndex = (uint8 >> (pixelInGroup * 4)) & 15;
+      //         const color = this._palette.getColor(colorIndex);
+      //         data[dstBase + 0] = color.r;
+      //         data[dstBase + 1] = color.g;
+      //         data[dstBase + 2] = color.b;
+      //         data[dstBase + 3] = color.a;
+      //       }
+      //     }
+      //   }
+      //   break;
 
       case 8:
         for (let index = 0; index < pixels; index++) {
