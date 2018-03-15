@@ -45,10 +45,10 @@ export class Bitmap {
     const out = this._createRGBATypedArray();
 
     const { width, height } = this._IHDR;
-    // const pixels = this._IHDR.width * this._IHDR.height;
     for (let y = 0, index = 0; y < height; y++) {
       for (let x = 0; x < width; x++, index++) {
         const grey = inStream.readUint(this._IHDR.bitDepth);
+        // if (index < 32) console.log(`d[${index}]=${grey}`);
         out[index * 4 + 0] = grey;
         out[index * 4 + 1] = grey;
         out[index * 4 + 2] = grey;
@@ -56,14 +56,6 @@ export class Bitmap {
       }
       if (y !== height - 1) inStream.nextByte();
     }
-    // for (let index = 0; index < pixels; index++) {
-    //   const grey = inStream.readUint(this._IHDR.bitDepth);
-    //   out[index * 4 + 0] = grey;
-    //   out[index * 4 + 1] = grey;
-    //   out[index * 4 + 2] = grey;
-    //   out[index * 4 + 3] = alphaChannel ? inStream.readUint(this._IHDR.bitDepth) : Colors.getOpaque(this._IHDR.bitDepth);
-    // }
-
     return out;
   }
 
@@ -83,6 +75,25 @@ export class Bitmap {
   }
 
   private _indexedToRGBA() {
+    const inStream = new DataViewBitStream(this._data);
+    const out = this._createRGBATypedArray();
+
+    const { width, height } = this._IHDR;
+    for (let y = 0, index = 0; y < height; y++) {
+      for (let x = 0; x < width; x++, index++) {
+        const colorIndex = inStream.readUint(this._IHDR.bitDepth);
+        const color = this._palette!.getColor(colorIndex)
+        out[index * 4 + 0] = color.r;
+        out[index * 4 + 1] = color.g;
+        out[index * 4 + 2] = color.b;
+        out[index * 4 + 3] = color.a;
+      }
+      if (y !== height - 1) inStream.nextByte();
+    }
+    return out;
+  }
+
+  private _indexedToRGBA__() {
     if (!this._palette) throw new Error('palette not found');
     const pixels = this._IHDR.width * this._IHDR.height;
     const data = new Uint8Array(pixels * 4);

@@ -6,13 +6,14 @@ export interface Color {
 }
 
 export class Color1D {
-  constructor(public grey: number) {
-  }
+  constructor(
+    public y: number
+  ) {}
 }
 
 export class Color2D {
   constructor(
-    public grey: number,
+    public y: number,
     public a: number,
   ) {}
 }

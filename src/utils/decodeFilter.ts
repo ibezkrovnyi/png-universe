@@ -207,6 +207,7 @@ class Filter {
 }
 
 export class ReverseFilter {
+    _bytesPerPixel: number;
     _scanLineByteLength: number;
     _IHDR: IHDR;
     outData: Uint8Array;
@@ -215,7 +216,6 @@ export class ReverseFilter {
     constructor(inData: Uint8Array, IHDR: IHDR) {
         this._IHDR = IHDR;
         this._inData = inData;
-
 
         const bytesPerSample = this._IHDR.bitDepth / 8;
         let bytesPerPixel;
@@ -238,6 +238,7 @@ export class ReverseFilter {
             default:
                 throw new Error();
         }
+        this._bytesPerPixel = bytesPerPixel;
         this._scanLineByteLength = Math.ceil(IHDR.width * bytesPerPixel);
 
         this._readOffset = 0;
@@ -253,6 +254,7 @@ export class ReverseFilter {
     _reverseFilterLine(line: number, unfilteredStream: DataViewStream) {
         const filter = unfilteredStream.readUint8();
         const outRowPos = line * this._scanLineByteLength;
+        const Bpp = Math.max(this._bytesPerPixel, 1);
         
         switch (filter) {
             case FilterType.None:
@@ -263,7 +265,7 @@ export class ReverseFilter {
 
             case FilterType.Sub:
                 for(let i = 0; i < this._scanLineByteLength; i++) {
-                    const left = i > 0 ? this.outData[outRowPos + i - 1] : 0;
+                    const left = i >= Bpp ? this.outData[outRowPos + i - Bpp] : 0;
                     this.outData[outRowPos + i] = unfilteredStream.readUint8() + left;
                 }
                 break;
@@ -277,7 +279,7 @@ export class ReverseFilter {
 
             case FilterType.Avg:
                 for(let i = 0; i < this._scanLineByteLength; i++) {
-                    const left = i > 0 ? this.outData[outRowPos + i - 1] : 0;
+                    const left = i >= Bpp ? this.outData[outRowPos + i - Bpp] : 0;
                     const up = line > 0 ? this.outData[outRowPos - this._scanLineByteLength + i] : 0;
                     const add = Math.floor((left + up) / 2);
                     this.outData[outRowPos + i] = unfilteredStream.readUint8() + add;
@@ -286,11 +288,13 @@ export class ReverseFilter {
 
             case FilterType.Paeth:
                 for(let i = 0; i < this._scanLineByteLength; i++) {
-                    const left = i > 0 ? this.outData[outRowPos + i - 1] : 0;
-                    const up = line > 0 ? this.outData[outRowPos - this._scanLineByteLength + i] : 0;
-                    const upLeft = i > 0 && line > 0 ? this.outData[outRowPos - this._scanLineByteLength - 1 + i] : 0;
+                    const outBytePos = outRowPos + i;
+                    const left = i >= Bpp ? this.outData[outBytePos - Bpp] : 0;
+                    const up = line > 0 ? this.outData[outBytePos - this._scanLineByteLength] : 0;
+                    const upLeft = i >= Bpp && line > 0 ? this.outData[outBytePos - this._scanLineByteLength - Bpp] : 0;
                     const add = PaethPredictor(left, up, upLeft);
-                    this.outData[outRowPos + i] = unfilteredStream.readUint8() + add;
+                    const tmp = unfilteredStream.readUint8() + add;
+                    this.outData[outBytePos] = tmp;
                 }
                 break;
         }
@@ -299,14 +303,13 @@ export class ReverseFilter {
 
 
 
-var PaethPredictor = function (left: number, above: number, upLeft: number) {
-
-    var p = left + above - upLeft,
+var PaethPredictor = function (left: number, up: number, upLeft: number) {
+    var p = left + up - upLeft,
         pLeft = Math.abs(p - left),
-        pAbove = Math.abs(p - above),
+        pUp = Math.abs(p - up),
         pUpLeft = Math.abs(p - upLeft);
 
-    if (pLeft <= pAbove && pLeft <= pUpLeft) return left;
-    else if (pAbove <= pUpLeft) return above;
+    if (pLeft <= pUp && pLeft <= pUpLeft) return left;
+    else if (pUp <= pUpLeft) return up;
     else return upLeft;
 };

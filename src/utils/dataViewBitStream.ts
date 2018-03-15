@@ -55,16 +55,32 @@ export class DataViewBitStream {
     return dataView;
   }
 
+  private _readBit() {
+    if (this._bitsLeftInByte === 0) this.nextByte();
+    this._bitsLeftInByte--;
+    return (this._currentByte >> (this._bitsLeftInByte)) & 1;
+  }
+
   readUint(totalBitsToRead: number) {
+    let multiplier = 2 ** (totalBitsToRead - 1);
+    let value = 0;
+    for (let i = 0; i < totalBitsToRead; i++) {
+      value += this._readBit() * multiplier;
+      multiplier /= 2;
+    }
+    return value;
+  }
+
+  readUint_(totalBitsToRead: number) {
     let value = 0;
     let bitsRead = 0;
     while(totalBitsToRead > 0) {
       if (this._bitsLeftInByte === 0) this.nextByte();
 
       const bitsToRead = Math.min(this._bitsLeftInByte, totalBitsToRead);
-      const bits = (this._currentByte >> (this._bitsLeftInByte - 1)) & bitsToMask[bitsToRead];
+      const bits = reverseBitsInByte[this._currentByte >> (this._bitsLeftInByte - 1)] & bitsToMask[bitsToRead];
 
-      value += reverseBitsInByte[bits] * (2 ** bitsRead);
+      value += bits * (2 ** bitsRead);
       bitsRead += bitsToRead;
       
       this._bitsLeftInByte -= bitsToRead;

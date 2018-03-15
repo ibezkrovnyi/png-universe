@@ -71,7 +71,7 @@ export class Palette {
    * Returns number of colors in Palette
    */
   getColorsCount() {
-    return this._data.length;
+    return this._data.length / 4;
   }
 
   /**

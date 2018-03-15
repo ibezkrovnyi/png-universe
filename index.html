@@ -6,15 +6,38 @@
         .image-item>div {}
 
         .image-item>canvas {
+            cursor: 'zoom-in';
             display: inline-block;
-            box-shadow: 0 0 3px green;
             margin: 4px;
         }
 
         .image-item>img {
+            cursor: 'zoom-in';
             display: inline-block;
-            box-shadow: 0 0 3px blue;
             margin: 4px;
+        }
+
+        .image-item>*:nth-child(2) {
+            box-shadow: 0 0 3px green;
+        }
+
+        .image-item>*:nth-child(3), .image-item>*:nth-child(4) {
+            box-shadow: 0 0 3px blue;
+        }
+
+        .image-item>* {
+            /* Older versions of FF          */
+            image-rendering: optimizeSpeed;
+            /* FF 6.0+                       */
+            image-rendering: -moz-crisp-edges;
+            /* Safari                        */
+            image-rendering: -webkit-optimize-contrast;
+            /* OS X & Windows Opera (12.02+) */
+            image-rendering: -o-crisp-edges;
+            /* Awesome future-browsers       */
+            image-rendering: pixelated;
+            /* IE                            */
+            -ms-interpolation-mode: nearest-neighbor;
         }
     </style>
 </head>
