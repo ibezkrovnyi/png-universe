@@ -1,6 +1,6 @@
-import { ChunkTypes, ChunkNames, signature, Colors } from "./format/chunks/constants";
+import { ChunkTypes, ChunkNames, signature, Colors } from "./format/constants";
 import { Chunk } from "./format/chunks/chunk";
-import { CRC32, crc32 } from "./format/crc";
+import { crc32 } from "./format/crc";
 import { readIHDR, IHDR, ColorTypeMasks, ColorTypes } from "./format/chunks/IHDR";
 import { Palette } from './models/palette';
 import { parseChunks } from './parser';
@@ -29,7 +29,7 @@ export class PNGImage {
       offset += chunk.data.byteLength + 12;
 
       if (chunks.length === 0 && chunk.type != ChunkTypes.IHDR) {
-        throw new Error('Expected IHDR on beggining');
+        throw new Error('(spec) Expected chunk IHDR on beggining');
       }
       chunks.push(chunk);
 
@@ -52,13 +52,13 @@ export class PNGImage {
   }
 
   getImageData() {
-    return this._parsed.bitmap.toImageData();
+    return this._parsed.bitmap.toRGBA();
   }
 
   private checkSignature(dataView: DataView) {
     const byteLength = signature.length;
     for (let offset = 0; offset < byteLength; offset++) {
-      if (dataView.getUint8(offset) !== signature[offset]) throw new Error(`wrong signature`);
+      if (dataView.getUint8(offset) !== signature[offset]) throw new Error(`(spec) Wrong PNG signature`);
     }
   }
 
@@ -69,7 +69,7 @@ export class PNGImage {
 
     // crc applied to type & data
     const crc = crc32(dataView, 4, 4 + byteLength);
-    if (crc !== dataView.getUint32(8 + byteLength)) throw new Error(`crc error for chunk type ${name} (${crc}, ${dataView.getUint32(8 + byteLength)})`);
+    if (crc !== dataView.getUint32(8 + byteLength)) throw new Error(`(spec) Crc error for chunk type ${name} (${crc}, ${dataView.getUint32(8 + byteLength)})`);
     console.log(`crc ok for chunk ${name}`);
 
     return {

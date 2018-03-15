@@ -11,6 +11,10 @@ export function assert<T>(...args: any[]) {
   }
 }
 
+export function assertT(value: any, message: string) {
+  if (!value) throw new Error(message);
+}
+
 export function readText(dataView: DataView, offset: number) {
   const text: string[] = [];
   let ch: number;

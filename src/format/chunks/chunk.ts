@@ -1,4 +1,4 @@
-import { ChunkTypes, ChunkNames } from "./constants";
+import { ChunkTypes, ChunkNames } from "../constants";
 
 export type Chunk = {
   readonly type: ChunkTypes,

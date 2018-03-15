@@ -1,6 +1,6 @@
 import { Chunk } from "../format/chunks/chunk";
-import { Colors } from "../format/chunks/constants";
-import { DataViewStream } from "../utils/stream";
+import { Colors } from "../format/constants";
+import { DataViewStream } from "../utils/dataViewStream";
 import { readText, assert, getUint } from "../utils";
 
 export class Palette {
@@ -14,7 +14,7 @@ export class Palette {
       paletteStream.writeUint8(PLTEStream.readUint8());
       paletteStream.writeUint8(PLTEStream.readUint8());
       paletteStream.writeUint8(PLTEStream.readUint8());
-      paletteStream.writeUint8(Colors.Opaque255);
+      paletteStream.writeUint8(Colors.getOpaque(8));
     }
 
     if (tRNS) {

@@ -1,5 +1,5 @@
 import { IHDR, ColorTypes } from "../format/chunks/IHDR";
-import { DataViewStream } from "./stream";
+import { DataViewStream } from "./dataViewStream";
 
 export enum FilterType {
     None = 0,

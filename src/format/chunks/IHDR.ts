@@ -1,5 +1,5 @@
 import { Chunk } from "./chunk";
-import { assert } from "../../utils";
+import { assert, assertT } from "../../utils";
 
 export const enum ColorTypeMasks {
   NoneMask = 0,
@@ -48,7 +48,7 @@ export interface IHDR {
 }
 
 // TODO: add validation of input
-export function readIHDR(dataView: DataView): IHDR {
+export function readIHDR(dataView: DataView) {
   const chunk = {
     width: dataView.getUint32(0),
     height: dataView.getUint32(4),
@@ -61,10 +61,8 @@ export function readIHDR(dataView: DataView): IHDR {
       return this.colorType & ColorTypeMasks.PaletteMask ? 8 : this.bitDepth;
     }
   };
-  if (validateIHDR(chunk)) {
-    return chunk;
-  }
-  throw new Error(`Chunk IHDR is not valid`);
+  validateIHDR(chunk);
+  return chunk as IHDR;
 }
 
 // TODO: add validation of input
@@ -83,18 +81,47 @@ export function writeIHDR(data: Uint8Array, offset: number, chunk: IHDR) {
 
 export function validateIHDR(chunkToValidate: any): chunkToValidate is IHDR {
   const chunk = chunkToValidate as IHDR;
-  assert(chunk.width > 0);
-  assert(chunk.height > 0);
-  switch (chunk.colorType) {
-    case ColorTypes.GreyScale: assert([1,2,4,8,16].includes(chunk.bitDepth)); break;
-    case ColorTypes.TrueColor: assert([8,16].includes(chunk.bitDepth)); break;
-    case ColorTypes.IndexedColor: assert([1,2,4,8].includes(chunk.bitDepth)); break;
-    case ColorTypes.GreyScaleWithAlpha: assert([8,16].includes(chunk.bitDepth)); break;
-    case ColorTypes.TrueColorWithAlpha: assert([8,16].includes(chunk.bitDepth)); break;
-    default: assert();
-  }
-  assert(chunk.compression, 0);
-  assert(chunk.filter, 0);
-  assert([InterlaceMethods.None, InterlaceMethods.Adam7].includes(chunk.interlace));
+  assertT(chunk.width > 0, msg`Width should be greater than 0`);
+  assertT(chunk.height > 0, msg`Width should be greater than 0`);
+  validateBitDepth(chunk.bitDepth, chunk.colorType);
+  assertT(
+    chunk.compression === 0, 
+    msg`Compression method ${chunk.compression} is spotted. Only compression method 0 is supported`,
+  );
+  assertT(
+    chunk.filter === 0,
+    msg`Filter method ${chunk.filter} is spotted. Only filter method 0 is supported`,
+  );
+  assertT(
+    [InterlaceMethods.None, InterlaceMethods.Adam7].includes(chunk.interlace), 
+    msg`Interlace method ${chunk.interlace} is spotted. Supported interlace methods are ${InterlaceMethods.None}=None, ${InterlaceMethods.Adam7}=Adam7`
+  );
   return true;
+}
+
+function validateBitDepth(bitDepth: number, colorType: number) {
+  let allowedBitDepths = {
+    [ColorTypes.GreyScale]: [1,2,4,8,16],
+    [ColorTypes.TrueColor]: [8,16],
+    [ColorTypes.IndexedColor]: [1,2,4,8],
+    [ColorTypes.GreyScaleWithAlpha]: [8,16],
+    [ColorTypes.TrueColorWithAlpha]: [8,16],
+  };
+  
+  const allowedByColorType = allowedBitDepths[colorType];
+  assertT(Array.isArray(allowedByColorType), msg`colorType=${colorType} is found, allowed values for colorType are ${Object.keys(allowedBitDepths).map(Number)}`);
+  assertT(allowedByColorType.includes(bitDepth), msg`colorType=${colorType} allows bitDepth to be one of 1,2,4,8,16, but bitDepth ${bitDepth} is found`);
+}
+
+function msg(literals: TemplateStringsArray, ...placeholders: any[]) {
+  let result = [];
+
+  // interleave the literals with the placeholders
+  for (let i = 0; i < placeholders.length; i++) {
+      result.push(literals[i]);
+      result.push(placeholders[i]);
+  }
+
+  result.push(literals[literals.length - 1]);
+  return '(spec) IHDR error: ' + result.join('');
 }

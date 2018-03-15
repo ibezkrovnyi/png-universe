@@ -1,24 +1,85 @@
 import { IHDR, readIHDR, ColorTypes } from "./format/chunks/IHDR";
 import { Chunk } from "./format/chunks/chunk";
+import { Color1D, Color3D } from "./models/color";
 import { Palette } from "./models/palette";
 import { Bitmap } from "./models/bitmap";
-import { ChunkTypes } from "./format/chunks/constants";
+import { ChunkTypes } from "./format/constants";
 import { ReverseFilter } from './utils/decodeFilter';
 import * as pako from "pako";
+import { assertT } from "./utils";
 
-export function parseChunks(chunks: Chunk[]) {
+export interface ParsedChunksData {
+  chunks: Chunk[],
+  info: IHDR,
+  palette?: Palette,
+  suggestedPalettes?: Palette[],
+  singleTransparentColor?: Color1D | Color3D,
+  bitmap: Bitmap,
+}
+
+export function parseChunks(chunks: Chunk[]): ParsedChunksData {
+  assertT(getChunksByType(chunks, ChunkTypes.IDAT).length > 0, '(spec) IDAT chunk is missing');
+
   const IHDR = readIHDR(chunks[0].data);
   const palette = parsePalette(IHDR, chunks);
+  const suggestedPalettes = parseSuggestedPalettes(IHDR, chunks);
+  const singleTransparentColor = parseSingleTransparentColor(IHDR, chunks);
+
   const data = parseData(IHDR, chunks, palette);
-  const bitmap = new Bitmap(IHDR, data, palette);
-  return {
+  const bitmap = new Bitmap(IHDR, data, singleTransparentColor, palette);
+  // return {
+  //   chunks,
+  //   info: IHDR,
+  //   palette,
+  //   suggestedPalettes: parseSuggestedPalettes(IHDR, chunks),
+  //   singleTransparentColor: parseSingleTransparentColor(IHDR, chunks),
+  //   data,
+  //   bitmap,
+  // };
+
+  const base = {
     chunks,
     info: IHDR,
-    palette,
-    suggestedPalettes: parseSuggestedPalettes(IHDR, chunks),
-    data,
+    suggestedPalettes,
     bitmap,
   };
+
+  switch (IHDR.colorType) {
+    case ColorTypes.GreyScale:
+      assertT(getChunksByType(chunks, ChunkTypes.PLTE).length === 0, `(spec) PLTE chunk should not appear for colorType=${IHDR.colorType}`);
+      return {
+        ...base,
+        singleTransparentColor,
+      };
+
+    case ColorTypes.TrueColor:
+      return {
+        ...base,
+        palette,
+        singleTransparentColor,
+      }
+
+    case ColorTypes.IndexedColor:
+      return {
+        ...base,
+        palette,
+        singleTransparentColor,
+      }
+
+    case ColorTypes.GreyScaleWithAlpha:
+      assertT(getChunksByType(chunks, ChunkTypes.PLTE).length === 0, `(spec) PLTE chunk should not appear for colorType=${IHDR.colorType}`);
+      assertT(getChunksByType(chunks, ChunkTypes.tRNS).length === 0, `(spec) tRNS chunk should not appear for colorType=${IHDR.colorType}`);
+      return base;
+
+    case ColorTypes.TrueColorWithAlpha:
+      assertT(getChunksByType(chunks, ChunkTypes.tRNS).length === 0, `(spec) tRNS chunk should not appear for colorType=${IHDR.colorType}`);
+      return {
+        ...base,
+        palette,
+      }
+  }
+
+  throw new Error('impossible error. colorTypes are already validated in IHDR');
 }
 
 function getFirstChunkByType(chunks: Chunk[], type: ChunkTypes) {
@@ -30,18 +91,36 @@ function getChunksByType(chunks: Chunk[], type: ChunkTypes) {
   return chunks.filter(chunk => chunk.type === type);
 }
 
-// static areChunkNamesEqual(name1: string, name2: string) {
-//   return name1.toUpperCase() === name2.toUpperCase();
-// }
-
 function parsePalette(IHDR: IHDR, chunks: Chunk[]) {
-  if (IHDR.colorType !== ColorTypes.IndexedColor) return undefined;
+  if (IHDR.colorType !== ColorTypes.IndexedColor) return;
 
   const PLTE = getFirstChunkByType(chunks, ChunkTypes.PLTE);
-  if (!PLTE) return undefined;
+  if (!PLTE) return;
 
   const tRNS = getFirstChunkByType(chunks, ChunkTypes.tRNS);
   return Palette.fromPLTE(IHDR.bitDepth, PLTE, tRNS);
+}
+
+/**
+ * Only for Non-Indexed ColorTypes
+ */
+function parseSingleTransparentColor(IHDR: IHDR, chunks: Chunk[]) {
+  if (IHDR.colorType === ColorTypes.IndexedColor) return;
+
+  const tRNS = getFirstChunkByType(chunks, ChunkTypes.tRNS);
+  if (!tRNS) return;
+
+  switch (IHDR.colorType) {
+    case ColorTypes.GreyScale:
+      return new Color1D(tRNS.data.getUint16(0));
+
+    case ColorTypes.TrueColor:
+      return new Color3D(
+        tRNS.data.getUint16(0),
+        tRNS.data.getUint16(2),
+        tRNS.data.getUint16(4),
+      );
+  }
 }
 
 function parseSuggestedPalettes(IHDR: IHDR, chunks: Chunk[]) {
@@ -49,8 +128,7 @@ function parseSuggestedPalettes(IHDR: IHDR, chunks: Chunk[]) {
   if (IHDR.colorType !== ColorTypes.IndexedColor) {
     const PLTE = getFirstChunkByType(chunks, ChunkTypes.PLTE);
     if (PLTE) {
-      const tRNS = getFirstChunkByType(chunks, ChunkTypes.tRNS);
-      palettes.push(Palette.fromPLTE(IHDR.bitDepth, PLTE, tRNS));
+      palettes.push(Palette.fromPLTE(IHDR.bitDepth, PLTE));
     }
   }
 
@@ -76,62 +154,7 @@ function parseData(IHDR: IHDR, chunks: Chunk[], palette?: Palette) {
     throw new Error(inflator.msg);
   }
 
-  // let result = require('browserify-zlib').inflateSync(Buffer.concat(IDAT.map(chunk => new Buffer(chunk.data.buffer))));
-
   let result = inflator.result as Uint8Array;
   result = new ReverseFilter(result, IHDR).outData;
-  //result = IHDR.colorType === ColorTypes.IndexedColor ? indexedToTrueColorWithAlpha(IHDR, result, palette) : result;
-  // const filterReversed = IHDR.colorType === ColorTypes.IndexedColor ? uncompressed : new ReverseFilter(uncompressed, IHDR).outData;
-
-  // const uncompressed = inflator.result as Uint8Array;
-  // return indexedToTrueColorWithAlpha(IHDR, uncompressed, palette);
-  
-
-  // let trueColor = IHDR.colorType === ColorTypes.IndexedColor ? indexedToTrueColorWithAlpha(IHDR, filterReversed, palette) : inflator.result as Uint8Array
-
   return result;
-}
-
-function indexedToTrueColorWithAlpha(IHDR: IHDR, indexedData: Uint8Array, palette?: Palette) {
-  if (!palette) throw new Error('palette not found');
-  const pixels = IHDR.width * IHDR.height;
-  const data = new Uint8Array(pixels * 4);
-  switch (IHDR.bitDepth) {
-    case 1:
-      // TODO: other bit/sample depth?
-      throw new Error('not implemented yet');
-    case 2:
-      const lineByteLength = Math.ceil(IHDR.width / 4);
-      for (let y = 0; y < IHDR.height; y++) {
-        for (let x = 0; x < IHDR.width; x+=4) {
-          let srcByteOffset = lineByteLength * y + x/4;
-          const uint8 = indexedData[srcByteOffset];
-
-          for (let pixelInGroup = 0; pixelInGroup < 4; pixelInGroup++) {
-            const dstBase = (y * IHDR.width + x + (3-pixelInGroup)) * 4;
-            const colorIndex = (uint8 >> (pixelInGroup*2)) & 3;
-            const color = palette.getColor(colorIndex);
-            data[dstBase + 0] = color.r;
-            data[dstBase + 1] = color.g;
-            data[dstBase + 2] = color.b;
-            data[dstBase + 3] = color.a;
-          }
-        }
-      }
-      break;
-    case 4:
-      // TODO: other bit/sample depth?
-      throw new Error('not implemented yet');
-
-    case 8:
-      for (let index = 0; index < pixels; index++) {
-        const color = palette.getColor(indexedData[index]);
-        data[index * 4 + 0] = color.r;
-        data[index * 4 + 1] = color.g;
-        data[index * 4 + 2] = color.b;
-        data[index * 4 + 3] = color.a;
-      }
-      break;
-  }
-  return data;
 }
