@@ -1,4 +1,6 @@
-import { PNGImage } from './image';
+import { PNGImage } from './lib';
+// @ts-ignore
+import { PNG } from 'pngjs3/browser';
 
 async function run() {
   const configResponse = await fetch('/images/PngSuite/config.json');
@@ -17,10 +19,10 @@ async function run() {
 }
 
 async function blobToArrayBuffer(blob: Blob) {
-  var fileReader = new FileReader();
+  const fileReader = new FileReader();
   return new Promise<ArrayBuffer>((resolve, reject) => {
-    fileReader.onload = (event: any) => {
-      resolve(event.target.result);
+    fileReader.onload = function() {
+      resolve(this.result);
     };
     fileReader.readAsArrayBuffer(blob);
   });
@@ -32,7 +34,7 @@ function drawImage(name: string, uint8Array: Uint8Array) {
   container.onclick = () => {
     debugger;
     drawImage(name, uint8Array);
-  }
+  };
   document.body.appendChild(container);
 
   // HTML
@@ -57,13 +59,13 @@ function drawImage(name: string, uint8Array: Uint8Array) {
   if (palette) {
     console.log('palette colors', palette.getColorsCount());
   }
-  console.log('suggested palettes', image.getImageData());
+  console.log('suggested palettes', image.getSuggestedPalettes());
 
   // Canvas
   const canvas = document.createElement('canvas');
   container.appendChild(canvas);
 
-  // CANVAS-ORIGINAL
+  // CANVAS-PNGJS
   const canvasOriginal = document.createElement('canvas');
   container.appendChild(canvasOriginal);
 
@@ -74,10 +76,24 @@ function drawImage(name: string, uint8Array: Uint8Array) {
     canvasOriginal.height = height;
     const ctx = canvasOriginal.getContext('2d');
     if (ctx) {
-      ctx.imageSmoothingEnabled = false;
-      ctx.drawImage(img, 0, 0);
+      const toBuffer = (ab: Uint8Array) => {
+        const buf = new Buffer(ab.byteLength);
+        const view = new Uint8Array(ab);
+        for (let i = 0; i < buf.length; ++i) {
+          buf[i] = view[i];
+        }
+        return buf;
+      };
+      const data = new Uint8Array(uint8Array);
+      const png = PNG.sync.read(toBuffer(data));
+      const uint8ClampedArray2 = new Uint8ClampedArray(png.data);
+      const imageData = new ImageData(uint8ClampedArray2, width, height);
+      ctx.putImageData(imageData, 0, 0);
+
+      // ctx.imageSmoothingEnabled = false;
+      // ctx.drawImage(img, 0, 0);
     }
-  }
+  };
   img.src = `/images/PngSuite/${name}`;
   container.appendChild(img);
 
@@ -87,36 +103,43 @@ function drawImage(name: string, uint8Array: Uint8Array) {
 
   const ctx = canvas.getContext('2d');
   if (ctx) {
-    const source = image.getImageData()!;
 
-    let uint8ClampedArray;
-    if (image.getInfo().sampleDepth !== 8) {
-      uint8ClampedArray = new Uint8ClampedArray(4 * width * height);
-      const multiplierTable = {
-        "1": 255,
-        "2": 85,
-        "4": 17,
-        "8": 1,
-        "16": 0.0038910505836575876,
-      }
-      const bitDepth = image.getInfo().sampleDepth;
-      const multiplier = multiplierTable[bitDepth];
-      for (let i = 0; i < 4 * width * height; i++) {
-        uint8ClampedArray[i] = source[i] * multiplier;
-      }
-    } else {
-      uint8ClampedArray = new Uint8ClampedArray(source.buffer);
-    }
+    const source = image.toCustomImageData({
+      channelsMap: 'RGBA',
+      sampleDepth: 2,
+    });
+
+    // let uint8ClampedArray;
+    // if (image.getInfo().sampleDepth !== 8) {
+    //   uint8ClampedArray = new Uint8ClampedArray(4 * width * height);
+    //   const multiplierTable = {
+    //     1: 255,
+    //     2: 85,
+    //     4: 17,
+    //     8: 1,
+    //     16: 0.0038910505836575876,
+    //   };
+    //   const bitDepth = image.getInfo().sampleDepth;
+    //   const multiplier = multiplierTable[bitDepth];
+    //   for (let i = 0; i < 4 * width * height; i++) {
+    //     uint8ClampedArray[i] = source[i] * multiplier;
+    //   }
+    // } else {
+    //   uint8ClampedArray = new Uint8ClampedArray(source.buffer);
+    // }
 
     // fill with white color (by default, need to use special color if implemented)
-    ctx.fillStyle = "rgba(255,255,255,255)";
+    ctx.fillStyle = 'rgba(255,255,255,255)';
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // draw image
-    const imageData = new ImageData(uint8ClampedArray, width, height);
+    const imageData = new ImageData(
+      new Uint8ClampedArray(Array.from(source).map(c => c * 255 / (2 ** 2 - 1))),
+      width,
+      height,
+    );
     ctx.putImageData(imageData, 0, 0);
   }
-
 
 }
 

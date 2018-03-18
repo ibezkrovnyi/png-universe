@@ -1,17 +1,106 @@
-import { IHDR, ColorTypes } from "../format/chunks/IHDR";
-import { Palette } from "./palette";
-import { Colors } from "../format/constants";
-import { assertT } from "../utils";
-import { DataViewStream } from "../utils/dataViewStream";
-import { DataViewBitStream } from "../utils/dataViewBitStream";
-import { Color3D, Color1D } from "./color";
+import { IHDR, ColorTypes } from '../format/chunks/IHDR';
+import { Palette } from './palette';
+import { Colors } from '../format/constants';
+import { assertT } from '../utils';
+import { DataViewStream } from '../utils/dataViewStream';
+import { DataViewBitStream } from '../utils/dataViewBitStream';
+import { Color3D, Color1D } from './color';
+import { TypedArrayStream } from '../utils/TypedArrayStream';
 
+// export function decodeBitmap(IHDR: IHDR, data: Uint8Array, palette?: Palette) {
+//   switch (IHDR.colorType) {
+//     case ColorTypes.GreyScale:
+//       return greyscaleToRGBA(IHDR, data, false);
+
+//     case ColorTypes.TrueColor:
+//       return trueColorToRGBA(IHDR, data, false);
+
+//     case ColorTypes.IndexedColor:
+//       return indexedToRGBA(IHDR, data, palette);
+
+//     case ColorTypes.GreyScaleWithAlpha:
+//       return greyscaleToRGBA(IHDR, data, true);
+
+//     case ColorTypes.TrueColorWithAlpha:
+//       return trueColorToRGBA(IHDR, data, true);
+//   }
+// }
+
+function createTypedArray(IHDR: IHDR, channelsCount: number, sampleDepth = IHDR.sampleDepth) {
+  // for 16bit sampleDepth Uint16Array is used, for any other sampleDepth (1,2,4,8) Uint8Array should be used
+  const Contructor = sampleDepth === 16 ? Uint16Array : Uint8Array;
+  return new Contructor(IHDR.width * IHDR.height * channelsCount);
+}
+
+export function decodeGreyscale(IHDR: IHDR, data: Uint8Array, alphaChannel: boolean) {
+  const inStream = new DataViewBitStream(data);
+  const out = createTypedArray(IHDR, alphaChannel ? 2 : 1);
+  let outPos = 0;
+
+  const { width, height } = IHDR;
+  for (let y = 0, index = 0; y < height; y++) {
+    for (let x = 0; x < width; x++, index++) {
+      const grey = inStream.readUint(IHDR.bitDepth);
+      out[outPos++] = grey;
+      if (alphaChannel) {
+        out[outPos++] = inStream.readUint(IHDR.bitDepth);
+      }
+    }
+    if (y !== height - 1) inStream.nextByte();
+  }
+  return out;
+}
+
+export function decodeTrueColor(IHDR: IHDR, data: Uint8Array, alphaChannel: boolean) {
+  assertT([8, 16].includes(IHDR.bitDepth), `incorrect bit depth ${IHDR.bitDepth}`);
+
+  const pixels = IHDR.width * IHDR.height;
+  const out = createTypedArray(IHDR, alphaChannel ? 4 : 3);
+  let outPos = 0;
+  const stream = new DataViewStream(data);
+  for (let index = 0; index < pixels; index++) {
+    out[outPos++] = stream.readUint(IHDR.bitDepth);
+    out[outPos++] = stream.readUint(IHDR.bitDepth);
+    out[outPos++] = stream.readUint(IHDR.bitDepth);
+    if (alphaChannel) {
+      out[outPos++] = stream.readUint(IHDR.bitDepth);
+    }
+  }
+  return out;
+}
+
+export function decodeIndexed(IHDR: IHDR, data: Uint8Array, palette: Palette) {
+  const inStream = new DataViewBitStream(data);
+
+  const paletteChannelsCount = palette.channelsMap.length;
+  const alphaChannel = palette.channelsMap === 'RGBA';
+  const targetData = createTypedArray(IHDR, paletteChannelsCount, palette.sampleDepth);
+  const targetStream = new TypedArrayStream(targetData);
+
+  const { width, height } = IHDR;
+  for (let y = 0, index = 0; y < height; y++) {
+    for (let x = 0; x < width; x++, index++) {
+      const colorIndex = inStream.readUint(IHDR.bitDepth);
+      const paletteOffset = colorIndex * (paletteChannelsCount);
+      targetStream.write(palette.channelsData[paletteOffset + 0]);
+      targetStream.write(palette.channelsData[paletteOffset + 1]);
+      targetStream.write(palette.channelsData[paletteOffset + 2]);
+      if (alphaChannel) {
+        targetStream.write(palette.channelsData[paletteOffset + 3]);
+      }
+    }
+    if (y !== height - 1) inStream.nextByte();
+  }
+  return targetData;
+}
+
+/*
 export class Bitmap {
   constructor(
     private _IHDR: IHDR,
     private _data: Uint8Array,
     private _singleTransparentColor?: Color1D | Color3D,
-    private _palette?: Palette
+    private _palette?: Palette,
   ) { }
 
   toRGBA() {
@@ -37,7 +126,7 @@ export class Bitmap {
     // for 16bit sampleDepth Uint16Array is used, for any other sampleDepth (1,2,4,8) Uint8Array should be used
     const Contructor = this._IHDR.sampleDepth === 16 ? Uint16Array : Uint8Array;
     const pixels = this._IHDR.width * this._IHDR.height;
-    return new Contructor(this._IHDR.width * this._IHDR.height * 4)
+    return new Contructor(this._IHDR.width * this._IHDR.height * 4);
   }
 
   private _greyscaleToRGBA(alphaChannel: boolean) {
@@ -60,7 +149,7 @@ export class Bitmap {
   }
 
   private _trueColorToRGBA(alphaChannel: boolean) {
-    assertT([8, 16].includes(this._IHDR.bitDepth), `incorrect bit depth ${this._IHDR.bitDepth}`)
+    assertT([8, 16].includes(this._IHDR.bitDepth), `incorrect bit depth ${this._IHDR.bitDepth}`);
 
     const pixels = this._IHDR.width * this._IHDR.height;
     const out = this._createRGBATypedArray();
@@ -82,7 +171,7 @@ export class Bitmap {
     for (let y = 0, index = 0; y < height; y++) {
       for (let x = 0; x < width; x++, index++) {
         const colorIndex = inStream.readUint(this._IHDR.bitDepth);
-        const color = this._palette!.getColor(colorIndex)
+        const color = this._palette!.getColor(colorIndex);
         out[index * 4 + 0] = color.r;
         out[index * 4 + 1] = color.g;
         out[index * 4 + 2] = color.b;
@@ -107,7 +196,7 @@ export class Bitmap {
         const indexMask = (2 ** this._IHDR.bitDepth) - 1;
         for (let y = 0; y < this._IHDR.height; y++) {
           for (let x = 0; x < this._IHDR.width; x += pixelsPerByte) {
-            let srcByteOffset = lineByteLength * y + x / pixelsPerByte;
+            const srcByteOffset = lineByteLength * y + x / pixelsPerByte;
             const uint8 = this._data[srcByteOffset];
 
             for (let pixelInGroup = 0; pixelInGroup < pixelsPerByte; pixelInGroup++) {
@@ -135,3 +224,5 @@ export class Bitmap {
     return data;
   }
 }
+
+*/

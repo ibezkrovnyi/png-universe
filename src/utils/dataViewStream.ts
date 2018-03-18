@@ -6,7 +6,7 @@
 export class DataViewStream {
   private _currentOffset: number;
   private _dataView: DataView;
-  
+
   constructor(dataView: DataView | Uint8Array, byteOffset = 0, byteLength = dataView.byteLength) {
     this._dataView = new DataView(dataView.buffer, dataView.byteOffset + byteOffset, byteLength);
     this._currentOffset = 0;

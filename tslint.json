@@ -96,6 +96,13 @@
     "no-unused-expression": [
       true,
       "allow-new"
-    ]
+    ],
+
+    // disable
+    "object-shorthand-properties-first": false,
+    "naming-convention": false,
+    "space-before-function-paren": false,
+    "no-non-null-assertion": false,
+    "no-conditional-assignment": false
   }
 }

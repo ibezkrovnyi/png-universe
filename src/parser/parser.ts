@@ -1,20 +1,21 @@
-import { IHDR, readIHDR, ColorTypes } from "./format/chunks/IHDR";
-import { Chunk } from "./format/chunks/chunk";
-import { Color1D, Color3D } from "./models/color";
-import { Palette } from "./models/palette";
-import { Bitmap } from "./models/bitmap";
-import { ChunkTypes } from "./format/constants";
-import { ReverseFilter } from './utils/decodeFilter';
-import * as pako from "pako";
-import { assertT } from "./utils";
+import { IHDR, readIHDR, ColorTypes } from '../format/chunks/IHDR';
+import { Chunk } from '../format/chunks/chunk';
+import { Color1D, Color3D } from '../models/color';
+import { Palette } from '../models/palette';
+import { decodeGreyscale, decodeTrueColor, decodeIndexed } from '../models/bitmap';
+import { ChunkTypes } from '../format/constants';
+import { ReverseFilter } from '../utils/decodeFilter';
+import * as pako from 'pako';
+import { assertT } from '../utils';
+import { getFirstChunkByType, getChunksByType } from './utils';
 
 export interface ParsedChunksData {
-  chunks: Chunk[],
-  info: IHDR,
-  palette?: Palette,
-  suggestedPalettes?: Palette[],
-  singleTransparentColor?: Color1D | Color3D,
-  bitmap: Bitmap,
+  chunks: Chunk[];
+  info: IHDR;
+  palette?: Palette;
+  suggestedPalettes?: Palette[];
+  singleTransparentColor?: Color1D | Color3D;
+  bitmap: ReturnType<typeof decodeGreyscale | typeof decodeTrueColor | typeof decodeIndexed>;
 }
 
 export function parseChunks(chunks: Chunk[]): ParsedChunksData {
@@ -26,7 +27,7 @@ export function parseChunks(chunks: Chunk[]): ParsedChunksData {
   const singleTransparentColor = parseSingleTransparentColor(IHDR, chunks);
 
   const data = parseData(IHDR, chunks, palette);
-  const bitmap = new Bitmap(IHDR, data, singleTransparentColor, palette);
+ // const bitmap = decodeBitmap(IHDR, data, palette);
   // return {
   //   chunks,
   //   info: IHDR,
@@ -41,7 +42,6 @@ export function parseChunks(chunks: Chunk[]): ParsedChunksData {
     chunks,
     info: IHDR,
     suggestedPalettes,
-    bitmap,
   };
 
   switch (IHDR.colorType) {
@@ -50,6 +50,7 @@ export function parseChunks(chunks: Chunk[]): ParsedChunksData {
       return {
         ...base,
         singleTransparentColor,
+        bitmap: decodeGreyscale(IHDR, data, false),
       };
 
     case ColorTypes.TrueColor:
@@ -57,38 +58,36 @@ export function parseChunks(chunks: Chunk[]): ParsedChunksData {
         ...base,
         palette,
         singleTransparentColor,
-      }
+        bitmap: decodeTrueColor(IHDR, data, false),
+      };
 
     case ColorTypes.IndexedColor:
+      assertT(palette, `(spec) PLTE chunk should appear for colorType=${IHDR.colorType}`);
       return {
         ...base,
         palette,
         singleTransparentColor,
-      }
+        bitmap: decodeIndexed(IHDR, data, palette!),
+      };
 
     case ColorTypes.GreyScaleWithAlpha:
       assertT(getChunksByType(chunks, ChunkTypes.PLTE).length === 0, `(spec) PLTE chunk should not appear for colorType=${IHDR.colorType}`);
       assertT(getChunksByType(chunks, ChunkTypes.tRNS).length === 0, `(spec) tRNS chunk should not appear for colorType=${IHDR.colorType}`);
-      return base;
+      return {
+        ...base,
+        bitmap: decodeGreyscale(IHDR, data, true),
+      };
 
     case ColorTypes.TrueColorWithAlpha:
       assertT(getChunksByType(chunks, ChunkTypes.tRNS).length === 0, `(spec) tRNS chunk should not appear for colorType=${IHDR.colorType}`);
       return {
         ...base,
         palette,
-      }
+        bitmap: decodeTrueColor(IHDR, data, true),
+      };
   }
 
   throw new Error('impossible error. colorTypes are already validated in IHDR');
-}
-
-function getFirstChunkByType(chunks: Chunk[], type: ChunkTypes) {
-  const chunksByType = getChunksByType(chunks, type);
-  return chunksByType.length > 0 ? chunksByType[0] : undefined;
-}
-
-function getChunksByType(chunks: Chunk[], type: ChunkTypes) {
-  return chunks.filter(chunk => chunk.type === type);
 }
 
 function parsePalette(IHDR: IHDR, chunks: Chunk[]) {
@@ -140,7 +139,7 @@ function parseSuggestedPalettes(IHDR: IHDR, chunks: Chunk[]) {
 }
 
 function parseData(IHDR: IHDR, chunks: Chunk[], palette?: Palette) {
-  var inflator = new pako.Inflate();
+  const inflator = new pako.Inflate();
   const IDAT = getChunksByType(chunks, ChunkTypes.IDAT);
   IDAT.forEach((chunk, index, array) => {
     const data = chunk.data;

@@ -1,13 +1,55 @@
-import { ChunkTypes, ChunkNames, signature, Colors } from "./format/constants";
-import { Chunk } from "./format/chunks/chunk";
-import { crc32 } from "./format/crc";
-import { readIHDR, IHDR, ColorTypeMasks, ColorTypes } from "./format/chunks/IHDR";
+import { ChunkTypes, ChunkNames, signature, Colors } from './format/constants';
+import { Chunk } from './format/chunks/chunk';
+import { crc32 } from './format/crc';
+import { readIHDR, IHDR, ColorTypeMasks, ColorTypes, ColorTypeMap } from './format/chunks/IHDR';
 import { Palette } from './models/palette';
-import { parseChunks } from './parser';
-import { assert } from "./utils";
+import { parseChunks } from './parser/parser';
+import { assert } from './utils';
+import { ImageProps, ChannelsY, ChannelsMap, ChannelsYA, ChannelsRGB, ChannelsRGBA } from './image/imageProps';
+import { getChunksByType } from './parser/utils';
+import { toCustomImageData, ToTypedArrayOptions } from './image/toCustomImageData';
 
-export class PNGImage {
+export class PNGImage implements ImageProps {
   private _parsed: ReturnType<typeof parseChunks>;
+
+  get width() {
+    return this._parsed.info.width;
+  }
+  get height() {
+    return this._parsed.info.height;
+  }
+  get bitDepth() {
+    return this._parsed.info.bitDepth;
+  }
+  get sampleDepth() {
+    return this._parsed.info.colorType === ColorTypes.IndexedColor ? this._parsed.palette!.sampleDepth : this._parsed.info.bitDepth;
+  }
+  get channelsMap() {
+    const tRNS = getChunksByType(this._parsed.chunks, ChunkTypes.tRNS);
+    const colorTypeToChannelMap: ColorTypeMap<() => ChannelsMap> = {
+      [ColorTypes.GreyScale]: () => 'Y',
+      [ColorTypes.GreyScaleWithAlpha]: () => 'YA',
+      [ColorTypes.IndexedColor]: () => this._parsed.palette!.channelsMap,
+      [ColorTypes.TrueColor]: () => 'RGB',
+      [ColorTypes.TrueColorWithAlpha]: () => 'RGBA',
+    };
+    return colorTypeToChannelMap[this._parsed.info.colorType]();
+  }
+
+  get channelsData() {
+    return this._parsed.bitmap;
+  }
+
+  get palette() {
+    return this._parsed.palette;
+  }
+
+  /**
+   * Always 8 bit per channel RGBA
+   */
+  toCustomImageData(targetFormat?: ToTypedArrayOptions) {
+    return toCustomImageData(this, targetFormat);
+  }
 
   static fromFile(data: Uint8Array) {
     return PNGImage.fromPNGDataStream(data);
@@ -28,7 +70,7 @@ export class PNGImage {
       const chunk = this.readChunk(new DataView(data.buffer, data.byteOffset + offset));
       offset += chunk.data.byteLength + 12;
 
-      if (chunks.length === 0 && chunk.type != ChunkTypes.IHDR) {
+      if (chunks.length === 0 && chunk.type !== ChunkTypes.IHDR) {
         throw new Error('(spec) Expected chunk IHDR on beggining');
       }
       chunks.push(chunk);
@@ -49,10 +91,6 @@ export class PNGImage {
 
   getSuggestedPalettes() {
     return this._parsed.suggestedPalettes;
-  }
-
-  getImageData() {
-    return this._parsed.bitmap.toRGBA();
   }
 
   private checkSignature(dataView: DataView) {

@@ -1,14 +1,14 @@
-import { ChunkTypes, ChunkNames } from "../constants";
+import { ChunkTypes, ChunkNames } from '../constants';
 
-export type Chunk = {
-  readonly type: ChunkTypes,
-  readonly data: DataView,
+export interface Chunk {
+  readonly type: ChunkTypes
+  readonly data: DataView
   readonly flags: {
     readonly ancillary: boolean
     readonly safeToCopy: boolean
     readonly private: boolean
   }
-};
+}
 
 export type DeepReadonly<T> =
     T extends any[] ? DeepReadonlyArray<T[number]> :

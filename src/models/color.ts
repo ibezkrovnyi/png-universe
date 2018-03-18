@@ -7,7 +7,7 @@ export interface Color {
 
 export class Color1D {
   constructor(
-    public y: number
+    public y: number,
   ) {}
 }
 
