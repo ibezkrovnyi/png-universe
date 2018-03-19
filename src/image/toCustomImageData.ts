@@ -12,16 +12,14 @@ const BT709 = {
     return 0.2126 * r + 0.7152 * g + 0.0722 * b;
   },
   luma2rgb(y: number) {
-    const g = y * 0.7152;
-    const r = y * 0.2126;
-    const b = (y - 0.2126 * r + 0.7152 * g) / 0.0722;
-    return { r, g, b };
+    return { r: y, g: y, b: y };
   },
 };
 
 export interface ToTypedArrayOptions {
   channelsMap?: ChannelsMap;
   sampleDepth?: BitDepth;
+  applyGamma?: boolean;
   smartColorsReducer?: {
     colorDistanceFormula?: ColorDistanceFormula;
     paletteQuantization?: PaletteQuantization;
@@ -29,11 +27,33 @@ export interface ToTypedArrayOptions {
   };
 }
 
-function getPixelMappers(src: TypedArrayStream, dst: TypedArrayStream, sourceSampleDepth: number, targetSampleDepth: number, sourceChannelsMap: ChannelsMap, targetChannelsMap: ChannelsMap) {
+function generateGammaLookup(gamma: number, sourceSampleDepth: number) {
+  const sourceMaxChannelValue = 2 ** sourceSampleDepth - 1;
+  const gammaLookupTable = sourceSampleDepth === 16 ? new Uint16Array(sourceMaxChannelValue + 1) : new Uint8Array(sourceMaxChannelValue + 1);
+  for (let i = 0; i <= sourceMaxChannelValue; i++) {
+    gammaLookupTable[i] = sourceMaxChannelValue * Math.pow(i / sourceMaxChannelValue, gamma);
+  }
+  return gammaLookupTable;
+}
+
+function getScaler(sourceSampleDepth: number, targetSampleDepth: number, gamma: number) {
+  const sourceMaxChannelValue = 2 ** sourceSampleDepth - 1;
+  const targetMaxChannelValue = 2 ** targetSampleDepth - 1;
+  const scaleMultiplier = targetMaxChannelValue / sourceMaxChannelValue;
+  // const clamp = (num: number) => Math.min(targetMaxChannelValue, Math.max(0, num));
+  const clamp = (num: number) => num < 0 ? 0 : num > targetMaxChannelValue ? targetMaxChannelValue : num;
+  // const correctGamma = (C: number) => sourceMaxChannelValue * Math.pow(C / sourceMaxChannelValue, gamma);
+  const gammaLookupTable = generateGammaLookup(gamma, sourceSampleDepth);
+  const scaler = gamma !== 1 ?
+    (C: number) => clamp(Math.round(gammaLookupTable[C] * scaleMultiplier)) :
+    (C: number) => clamp(Math.round(C * scaleMultiplier));
+
+  return scaler;
+}
+
+function getPixelMappers(src: TypedArrayStream, dst: TypedArrayStream, sourceSampleDepth: number, targetSampleDepth: number, sourceChannelsMap: ChannelsMap, targetChannelsMap: ChannelsMap, gamma: number) {
   const targetOpaque = Colors.getOpaque(targetSampleDepth);
-  const scaleMultiplier = (2 ** targetSampleDepth - 1) / (2 ** sourceSampleDepth - 1);
-  const clamp = (value: number) => Math.min(2 ** targetSampleDepth - 1, Math.max(0, value));
-  const scale = (C: number) => clamp(Math.round(C * scaleMultiplier));
+  const scale = getScaler(sourceSampleDepth, targetSampleDepth, gamma);
 
   const mappers: Record<ChannelsMap, Record<ChannelsMap, () => void>> = {
     [ChannelsY]: {
@@ -151,9 +171,10 @@ function getPixelMappers(src: TypedArrayStream, dst: TypedArrayStream, sourceSam
   return mappers[sourceChannelsMap][targetChannelsMap];
 }
 
-export function toCustomImageData(sourceImage: ImageProps, { channelsMap = ChannelsRGBA, sampleDepth = 8 }: ToTypedArrayOptions = {}) {
+export function toCustomImageData(sourceImage: ImageProps, { channelsMap = ChannelsRGBA, sampleDepth = 8, applyGamma = true }: ToTypedArrayOptions = {}) {
   const pixels = sourceImage.width * sourceImage.height;
   const targetData = sampleDepth === 16 ? new Uint16Array(pixels * channelsMap.length) : new Uint8Array(pixels * channelsMap.length);
+  const gamma = applyGamma && typeof sourceImage.gamma === 'number' ? 1 / 2.2 / sourceImage.gamma : 1;
   const mapper = getPixelMappers(
     new TypedArrayStream(sourceImage.channelsData),
     new TypedArrayStream(targetData),
@@ -161,6 +182,7 @@ export function toCustomImageData(sourceImage: ImageProps, { channelsMap = Chann
     sampleDepth,
     sourceImage.channelsMap,
     channelsMap,
+    gamma,
   );
 
   for (let index = 0; index < pixels; index++) {

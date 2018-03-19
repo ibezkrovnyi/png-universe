@@ -5,17 +5,17 @@
  */
 export class DataViewStream {
   private _currentOffset: number;
-  private _dataView: DataView;
+  private _dataView: Uint8Array;
 
   constructor(dataView: DataView | Uint8Array, byteOffset = 0, byteLength = dataView.byteLength) {
-    this._dataView = new DataView(dataView.buffer, dataView.byteOffset + byteOffset, byteLength);
+    this._dataView = new Uint8Array(dataView.buffer, dataView.byteOffset + byteOffset, byteLength);
     this._currentOffset = 0;
   }
 
   readText() {
     const text: string[] = [];
     let ch: number;
-    while (ch = this._dataView.getUint8(this._currentOffset++)) {
+    while (ch = this._dataView[this._currentOffset++]) {
       text.push(String.fromCharCode(ch));
     }
     return text.join('');
@@ -37,19 +37,27 @@ export class DataViewStream {
   }
 
   readUint8() {
-    return this._dataView.getUint8(this._currentOffset++);
+    return this._dataView[this._currentOffset++];
   }
 
   readUint16() {
-    const uint16 = this._dataView.getUint16(this._currentOffset);
-    this._currentOffset += 2;
-    return uint16;
+    const high = this._dataView[this._currentOffset++];
+    const low = this._dataView[this._currentOffset++];
+    return (high << 8) + low;
+    // const uint16 = this._dataView.getUint16(this._currentOffset);
+    // this._currentOffset += 2;
+    // return uint16;
   }
 
   readUint32() {
-    const uint32 = this._dataView.getUint32(this._currentOffset);
-    this._currentOffset += 4;
-    return uint32;
+    const b4 = (this._dataView[this._currentOffset++] << 24) >>> 0;
+    const b3 = this._dataView[this._currentOffset++] << 16;
+    const b2 = this._dataView[this._currentOffset++] << 8;
+    const b1 = this._dataView[this._currentOffset++];
+    return b4 + b3 + b2 + b1;
+    // const uint32 = this._dataView.getUint32(this._currentOffset);
+    // this._currentOffset += 4;
+    // return uint32;
   }
 
   /**
@@ -65,17 +73,19 @@ export class DataViewStream {
   }
 
   writeUint8(value: number) {
-    this._dataView.setUint8(this._currentOffset++, value);
+    this._dataView[this._currentOffset++] = value;
   }
 
   writeUint16(value: number) {
-    this._dataView.setUint16(this._currentOffset, value);
-    this._currentOffset += 2;
+    this._dataView[this._currentOffset++] = value >> 8;
+    this._dataView[this._currentOffset++] = value & 255;
   }
 
   writeUint32(value: number) {
-    this._dataView.setUint32(this._currentOffset, value);
-    this._currentOffset += 4;
+    this._dataView[this._currentOffset++] = value >>> 24;
+    this._dataView[this._currentOffset++] = value >>> 16 & 255;
+    this._dataView[this._currentOffset++] = value >>> 8 & 255;
+    this._dataView[this._currentOffset++] = value & 255;
   }
 
   skip(byteLength: number) {

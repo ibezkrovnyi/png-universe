@@ -2,38 +2,41 @@ import { PNGImage } from './lib';
 // @ts-ignore
 import { PNG } from 'pngjs3/browser';
 
-async function run() {
-  const configResponse = await fetch('/images/PngSuite/config.json');
+async function run(folder: string) {
+  const configResponse = await fetch(`/images/${folder}/config.json`);
   const config: { images: string[] } = await configResponse.json();
 
-  const images = config.images.filter(image => image.match(/...n..../));
+  const images = config.images; // .filter(image => image.match(/...n..../));
   for (const image of images) {
-    const imageResponse = await fetch(`/images/PngSuite/${image}`);
+    const url = `/images/${folder}/${image}`;
+    const imageResponse = await fetch(url);
     const blob = await imageResponse.blob();
     const arrayBuffer = await blobToArrayBuffer(blob);
 
-    drawImage(image, new Uint8Array(arrayBuffer));
+    for(var p = 0; p < 10; p++) {
+      drawImage(image, url, new Uint8Array(arrayBuffer));
+    }
   }
-
-  return fetch('/images/PngSuite/config.json');
 }
 
 async function blobToArrayBuffer(blob: Blob) {
   const fileReader = new FileReader();
   return new Promise<ArrayBuffer>((resolve, reject) => {
-    fileReader.onload = function() {
+    fileReader.onload = function () {
       resolve(this.result);
     };
     fileReader.readAsArrayBuffer(blob);
   });
 }
 
-function drawImage(name: string, uint8Array: Uint8Array) {
+function drawImage(name: string, url: string, uint8Array: Uint8Array) {
+  if (name !== 'children-602977_1920.png') return;
+  console.profile('func ' + name);
   const container = document.createElement('div');
   container.className = 'image-item';
   container.onclick = () => {
     debugger;
-    drawImage(name, uint8Array);
+    drawImage(name, url, uint8Array);
   };
   document.body.appendChild(container);
 
@@ -42,15 +45,27 @@ function drawImage(name: string, uint8Array: Uint8Array) {
   text.innerHTML = name;
   container.appendChild(text);
 
+  let libTime = 0;
+  let pngjsTime = 0;
+  let tmpTime;
+
   // PARSING
+  const data = new Uint8Array(uint8Array);
   let image;
+  tmpTime = performance.now();
   try {
-    image = PNGImage.fromFile(new Uint8Array(uint8Array));
+    image = parseLib(name, data);
   } catch (e) {
     text.innerHTML += '<br>Parse error: ' + e;
     text.style.color = 'red';
+  }
+  console.log('fromFile', performance.now() - tmpTime);
+  libTime += (performance.now() - tmpTime);
+
+  if (!image) {
     return;
   }
+
   const width = image.getInfo().width;
   const height = image.getInfo().height;
 
@@ -85,7 +100,37 @@ function drawImage(name: string, uint8Array: Uint8Array) {
         return buf;
       };
       const data = new Uint8Array(uint8Array);
+      tmpTime = performance.now();
+      console.profile(name + ' - pngjs');
       const png = PNG.sync.read(toBuffer(data));
+
+      const adjustGamma = function adjustGamma(src: any) {
+        if (src.gamma) {
+          const data = src.data;
+
+          if (!data) {
+            throw new Error('No data available for object');
+          }
+
+          for (let y = 0; y < src.height; y++) {
+            for (let x = 0; x < src.width; x++) {
+              const idx = src.width * y + x << 2;
+
+              for (let i = 0; i < 3; i++) {
+                let sample = data[idx + i] / 255;
+                sample = Math.pow(sample, 1 / 2.2 / src.gamma);
+                data[idx + i] = Math.round(sample * 255);
+              }
+            }
+          }
+          src.data = data;
+          src.gamma = 0;
+        }
+      };
+
+      adjustGamma(png);
+      console.profileEnd();
+      pngjsTime += (performance.now() - tmpTime);
       const uint8ClampedArray2 = new Uint8ClampedArray(png.data);
       const imageData = new ImageData(uint8ClampedArray2, width, height);
       ctx.putImageData(imageData, 0, 0);
@@ -94,7 +139,7 @@ function drawImage(name: string, uint8Array: Uint8Array) {
       // ctx.drawImage(img, 0, 0);
     }
   };
-  img.src = `/images/PngSuite/${name}`;
+  img.src = url;
   container.appendChild(img);
 
   // DRAWING
@@ -104,10 +149,13 @@ function drawImage(name: string, uint8Array: Uint8Array) {
   const ctx = canvas.getContext('2d');
   if (ctx) {
 
+    //console.profile(name + '->toCustomImageData');
     const source = image.toCustomImageData({
       channelsMap: 'RGBA',
-      sampleDepth: 2,
+      sampleDepth: 8,
     });
+    //console.profileEnd();
+    libTime += (performance.now() - tmpTime);
 
     // let uint8ClampedArray;
     // if (image.getInfo().sampleDepth !== 8) {
@@ -133,14 +181,24 @@ function drawImage(name: string, uint8Array: Uint8Array) {
     ctx.fillRect(0, 0, canvas.width, canvas.height);
 
     // draw image
+    /*Array.from(source).map(c => c * 255 / (2 ** 8 - 1))*/
     const imageData = new ImageData(
-      new Uint8ClampedArray(Array.from(source).map(c => c * 255 / (2 ** 2 - 1))),
+      new Uint8ClampedArray(source),
       width,
       height,
     );
     ctx.putImageData(imageData, 0, 0);
   }
-
+  console.profileEnd();
+  console.log(`${name}: libTime=${libTime}, pngjsTime=${pngjsTime}`);
 }
 
-run();
+run('PngSuite')
+  .then(() => run('Other'));
+
+function parseLib(name: string, data: Uint8Array) {
+  //console.profile(name);
+  const image = PNGImage.fromFile(data);
+  //console.profileEnd();
+  return image;
+}

@@ -24,6 +24,8 @@ export interface ImageProps {
   /** number of bits used to represent a sample value. In an indexed-colour PNG image, samples are stored in the palette and thus the sample depth is always 8 by definition of the palette. In other types of PNG image it is the same as the bit depth. */
   sampleDepth: BitDepth;
 
+  gamma?: number;
+
   palette?: Palette;
   channelsMap: ChannelsMap;
   channelsData: Uint8Array | Uint16Array;

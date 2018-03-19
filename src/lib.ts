@@ -44,6 +44,10 @@ export class PNGImage implements ImageProps {
     return this._parsed.palette;
   }
 
+  get gamma() {
+    return this._parsed.gamma;
+  }
+
   /**
    * Always 8 bit per channel RGBA
    */

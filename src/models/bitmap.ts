@@ -3,7 +3,7 @@ import { Palette } from './palette';
 import { Colors } from '../format/constants';
 import { assertT } from '../utils';
 import { DataViewStream } from '../utils/dataViewStream';
-import { DataViewBitStream } from '../utils/dataViewBitStream';
+import { BitStream } from '../utils/dataViewBitStream';
 import { Color3D, Color1D } from './color';
 import { TypedArrayStream } from '../utils/TypedArrayStream';
 
@@ -33,7 +33,7 @@ function createTypedArray(IHDR: IHDR, channelsCount: number, sampleDepth = IHDR.
 }
 
 export function decodeGreyscale(IHDR: IHDR, data: Uint8Array, alphaChannel: boolean) {
-  const inStream = new DataViewBitStream(data);
+  const inStream = new BitStream(data);
   const out = createTypedArray(IHDR, alphaChannel ? 2 : 1);
   let outPos = 0;
 
@@ -70,27 +70,31 @@ export function decodeTrueColor(IHDR: IHDR, data: Uint8Array, alphaChannel: bool
 }
 
 export function decodeIndexed(IHDR: IHDR, data: Uint8Array, palette: Palette) {
-  const inStream = new DataViewBitStream(data);
+  const inStream = new BitStream(data);
 
   const paletteChannelsCount = palette.channelsMap.length;
   const alphaChannel = palette.channelsMap === 'RGBA';
   const targetData = createTypedArray(IHDR, paletteChannelsCount, palette.sampleDepth);
-  const targetStream = new TypedArrayStream(targetData);
+  const bitDepth = IHDR.bitDepth;
+  const paletteData = palette.channelsData;
+  let targetOffset = 0;
 
+  console.profile('decodeIndexed!');
   const { width, height } = IHDR;
-  for (let y = 0, index = 0; y < height; y++) {
-    for (let x = 0; x < width; x++, index++) {
-      const colorIndex = inStream.readUint(IHDR.bitDepth);
-      const paletteOffset = colorIndex * (paletteChannelsCount);
-      targetStream.write(palette.channelsData[paletteOffset + 0]);
-      targetStream.write(palette.channelsData[paletteOffset + 1]);
-      targetStream.write(palette.channelsData[paletteOffset + 2]);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const colorIndex = inStream.readUint(bitDepth);
+      const paletteOffset = colorIndex * paletteChannelsCount | 0;
+      targetData[targetOffset++] = palette.channelsData[paletteOffset + 0];
+      targetData[targetOffset++] = palette.channelsData[paletteOffset + 1];
+      targetData[targetOffset++] = palette.channelsData[paletteOffset + 2];
       if (alphaChannel) {
-        targetStream.write(palette.channelsData[paletteOffset + 3]);
+        targetData[targetOffset++] = palette.channelsData[paletteOffset + 3];
       }
     }
     if (y !== height - 1) inStream.nextByte();
   }
+  console.profileEnd();
   return targetData;
 }
 

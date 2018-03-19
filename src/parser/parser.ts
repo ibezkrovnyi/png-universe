@@ -13,6 +13,7 @@ export interface ParsedChunksData {
   chunks: Chunk[];
   info: IHDR;
   palette?: Palette;
+  gamma?: number;
   suggestedPalettes?: Palette[];
   singleTransparentColor?: Color1D | Color3D;
   bitmap: ReturnType<typeof decodeGreyscale | typeof decodeTrueColor | typeof decodeIndexed>;
@@ -27,6 +28,9 @@ export function parseChunks(chunks: Chunk[]): ParsedChunksData {
   const singleTransparentColor = parseSingleTransparentColor(IHDR, chunks);
 
   const data = parseData(IHDR, chunks, palette);
+  const gAMA = getFirstChunkByType(chunks, ChunkTypes.gAMA);
+  const gamma = gAMA ? gAMA.data.getUint32(0) / 100000 : undefined;
+  console.log('gamma', gamma);
  // const bitmap = decodeBitmap(IHDR, data, palette);
   // return {
   //   chunks,
@@ -41,6 +45,7 @@ export function parseChunks(chunks: Chunk[]): ParsedChunksData {
   const base = {
     chunks,
     info: IHDR,
+    gamma,
     suggestedPalettes,
   };
 
