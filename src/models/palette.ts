@@ -55,7 +55,7 @@ export class Palette {
     readonly name: string,
     readonly channelsMap: 'RGB' | 'RGBA',
     readonly channelsData: Uint8Array | Uint16Array,
-  ) {}
+  ) { }
 
   /**
    * Returns name of Palette, may be useful if mupltiple Palettes are available
@@ -69,6 +69,20 @@ export class Palette {
    */
   getColorsCount() {
     return this.channelsData.length / this.channelsMap.length;
+  }
+
+  getColor(colorIndex: number): [number, number, number] | [number, number, number, number] {
+    const offset = colorIndex * this.channelsMap.length | 0;
+    return this.channelsMap === 'RGB' ? [
+      this.channelsData[offset],
+      this.channelsData[offset + 1],
+      this.channelsData[offset + 2],
+    ] : [
+      this.channelsData[offset],
+      this.channelsData[offset + 1],
+      this.channelsData[offset + 2],
+      this.channelsData[offset + 3],
+    ];
   }
 
   /**

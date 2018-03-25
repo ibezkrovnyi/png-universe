@@ -12,6 +12,7 @@ export enum ChunkTypes {
   tRNS = 0x74524e53,
   gAMA = 0x67414d41,
   sPLT = 0x73504C54,
+  bKGD = 0x624b4744,
 }
 
 export enum ChunkNames {

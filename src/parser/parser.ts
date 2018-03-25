@@ -8,6 +8,7 @@ import { ReverseFilter } from '../utils/decodeFilter';
 import * as pako from 'pako';
 import { assertT } from '../utils';
 import { getFirstChunkByType, getChunksByType } from './utils';
+import { ImageProps } from '../image/imageProps';
 
 export interface ParsedChunksData {
   chunks: Chunk[];
@@ -15,6 +16,7 @@ export interface ParsedChunksData {
   palette?: Palette;
   gamma?: number;
   suggestedPalettes?: Palette[];
+  backgroundColor?: ImageProps['backgroundColor'];
   singleTransparentColor?: Color1D | Color3D;
   bitmap: ReturnType<typeof decodeGreyscale | typeof decodeTrueColor | typeof decodeIndexed>;
 }
@@ -30,8 +32,11 @@ export function parseChunks(chunks: Chunk[]): ParsedChunksData {
   const data = parseData(IHDR, chunks, palette);
   const gAMA = getFirstChunkByType(chunks, ChunkTypes.gAMA);
   const gamma = gAMA ? gAMA.data.getUint32(0) / 100000 : undefined;
-  console.log('gamma', gamma);
- // const bitmap = decodeBitmap(IHDR, data, palette);
+  const bKGD = getFirstChunkByType(chunks, ChunkTypes.bKGD);
+  const backgroundColor = parseBackgroundColor(IHDR, palette, bKGD);
+
+  // console.log('gamma', gamma);
+  // const bitmap = decodeBitmap(IHDR, data, palette);
   // return {
   //   chunks,
   //   info: IHDR,
@@ -47,6 +52,7 @@ export function parseChunks(chunks: Chunk[]): ParsedChunksData {
     info: IHDR,
     gamma,
     suggestedPalettes,
+    backgroundColor,
   };
 
   switch (IHDR.colorType) {
@@ -108,7 +114,7 @@ function parsePalette(IHDR: IHDR, chunks: Chunk[]) {
 /**
  * Only for Non-Indexed ColorTypes
  */
-function parseSingleTransparentColor(IHDR: IHDR, chunks: Chunk[]) {
+function parseSingleTransparentColor(IHDR: IHDR, chunks: Chunk[]): ParsedChunksData['singleTransparentColor'] {
   if (IHDR.colorType === ColorTypes.IndexedColor) return;
 
   const tRNS = getFirstChunkByType(chunks, ChunkTypes.tRNS);
@@ -116,14 +122,14 @@ function parseSingleTransparentColor(IHDR: IHDR, chunks: Chunk[]) {
 
   switch (IHDR.colorType) {
     case ColorTypes.GreyScale:
-      return new Color1D(tRNS.data.getUint16(0));
+      return [tRNS.data.getUint16(0)];
 
     case ColorTypes.TrueColor:
-      return new Color3D(
+      return [
         tRNS.data.getUint16(0),
         tRNS.data.getUint16(2),
         tRNS.data.getUint16(4),
-      );
+      ];
   }
 }
 
@@ -159,6 +165,28 @@ function parseData(IHDR: IHDR, chunks: Chunk[], palette?: Palette) {
   }
 
   let result = inflator.result as Uint8Array;
-  result = new ReverseFilter(result, IHDR).outData;
+  result = new ReverseFilter(result, IHDR).dst;
   return result;
+}
+
+function parseBackgroundColor(IHDR: IHDR, palette?: Palette, bKGD?: Chunk): ParsedChunksData['backgroundColor'] {
+  if (!bKGD) return;
+
+  switch (IHDR.colorType) {
+    case ColorTypes.GreyScale:
+    case ColorTypes.GreyScaleWithAlpha:
+      return [bKGD.data.getUint16(0)];
+
+    case ColorTypes.IndexedColor:
+      if (!palette) return;
+      return palette.getColor(bKGD.data.getUint8(0));
+
+    case ColorTypes.TrueColor:
+    case ColorTypes.TrueColorWithAlpha:
+      return [
+        bKGD.data.getUint16(0),
+        bKGD.data.getUint16(2),
+        bKGD.data.getUint16(4),
+      ];
+  }
 }

@@ -52,18 +52,19 @@ export function decodeGreyscale(IHDR: IHDR, data: Uint8Array, alphaChannel: bool
 }
 
 export function decodeTrueColor(IHDR: IHDR, data: Uint8Array, alphaChannel: boolean) {
-  assertT([8, 16].includes(IHDR.bitDepth), `incorrect bit depth ${IHDR.bitDepth}`);
+  const bitDepth = IHDR.bitDepth;
+  assertT([8, 16].includes(bitDepth), `incorrect bit depth ${bitDepth}`);
 
   const pixels = IHDR.width * IHDR.height;
   const out = createTypedArray(IHDR, alphaChannel ? 4 : 3);
   let outPos = 0;
   const stream = new DataViewStream(data);
   for (let index = 0; index < pixels; index++) {
-    out[outPos++] = stream.readUint(IHDR.bitDepth);
-    out[outPos++] = stream.readUint(IHDR.bitDepth);
-    out[outPos++] = stream.readUint(IHDR.bitDepth);
+    out[outPos++] = stream.readUint(bitDepth);
+    out[outPos++] = stream.readUint(bitDepth);
+    out[outPos++] = stream.readUint(bitDepth);
     if (alphaChannel) {
-      out[outPos++] = stream.readUint(IHDR.bitDepth);
+      out[outPos++] = stream.readUint(bitDepth);
     }
   }
   return out;
@@ -76,10 +77,9 @@ export function decodeIndexed(IHDR: IHDR, data: Uint8Array, palette: Palette) {
   const alphaChannel = palette.channelsMap === 'RGBA';
   const targetData = createTypedArray(IHDR, paletteChannelsCount, palette.sampleDepth);
   const bitDepth = IHDR.bitDepth;
-  const paletteData = palette.channelsData;
   let targetOffset = 0;
 
-  console.profile('decodeIndexed!');
+  // console.profile('decodeIndexed!');
   const { width, height } = IHDR;
   for (let y = 0; y < height; y++) {
     for (let x = 0; x < width; x++) {
@@ -94,7 +94,7 @@ export function decodeIndexed(IHDR: IHDR, data: Uint8Array, palette: Palette) {
     }
     if (y !== height - 1) inStream.nextByte();
   }
-  console.profileEnd();
+  // console.profileEnd();
   return targetData;
 }
 

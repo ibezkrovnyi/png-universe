@@ -48,6 +48,10 @@ export class PNGImage implements ImageProps {
     return this._parsed.gamma;
   }
 
+  get backgroundColor() {
+    return this._parsed.backgroundColor;
+  }
+
   /**
    * Always 8 bit per channel RGBA
    */
@@ -100,7 +104,7 @@ export class PNGImage implements ImageProps {
   private checkSignature(dataView: DataView) {
     const byteLength = signature.length;
     for (let offset = 0; offset < byteLength; offset++) {
-      if (dataView.getUint8(offset) !== signature[offset]) throw new Error(`(spec) Wrong PNG signature`);
+      if (dataView.getUint8(offset) !== signature[offset]) throw new Error(`(spec) Wrong PNG signature ${Array.from(new Uint8Array(dataView.buffer, dataView.byteOffset, byteLength)).map(v => '0x' + v.toString(16))}`);
     }
   }
 
@@ -112,7 +116,7 @@ export class PNGImage implements ImageProps {
     // crc applied to type & data
     const crc = crc32(dataView, 4, 4 + byteLength);
     if (crc !== dataView.getUint32(8 + byteLength)) throw new Error(`(spec) Crc error for chunk type ${name} (${crc}, ${dataView.getUint32(8 + byteLength)})`);
-    console.log(`crc ok for chunk ${name}`);
+    // console.log(`crc ok for chunk ${name}`);
 
     return {
       type,

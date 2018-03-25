@@ -6,14 +6,14 @@ async function run(folder: string) {
   const configResponse = await fetch(`/images/${folder}/config.json`);
   const config: { images: string[] } = await configResponse.json();
 
-  const images = config.images; // .filter(image => image.match(/...n..../));
+  const images = folder === 'PngSuite' ? config.images.filter(image => image.match(/...n..../)) : config.images;
   for (const image of images) {
     const url = `/images/${folder}/${image}`;
     const imageResponse = await fetch(url);
     const blob = await imageResponse.blob();
     const arrayBuffer = await blobToArrayBuffer(blob);
 
-    for(var p = 0; p < 10; p++) {
+    for(var p = 0; p < 1; p++) {
       drawImage(image, url, new Uint8Array(arrayBuffer));
     }
   }
@@ -30,7 +30,7 @@ async function blobToArrayBuffer(blob: Blob) {
 }
 
 function drawImage(name: string, url: string, uint8Array: Uint8Array) {
-  if (name !== 'children-602977_1920.png') return;
+  if (name === 'Katahdin.png') return;
   console.profile('func ' + name);
   const container = document.createElement('div');
   container.className = 'image-item';
@@ -193,6 +193,8 @@ function drawImage(name: string, url: string, uint8Array: Uint8Array) {
   console.log(`${name}: libTime=${libTime}, pngjsTime=${pngjsTime}`);
 }
 
+// run('PngSuite')
+//  run('Other');
 run('PngSuite')
   .then(() => run('Other'));
 

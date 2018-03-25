@@ -1,5 +1,6 @@
 import { Palette } from '../models/palette';
 import { BitDepth } from '../format/chunks/IHDR';
+import { Color3D, Color1D, Color4D } from '../models/color';
 
 export const ChannelsY = 'Y';
 export const ChannelsYA = 'YA';
@@ -29,4 +30,6 @@ export interface ImageProps {
   palette?: Palette;
   channelsMap: ChannelsMap;
   channelsData: Uint8Array | Uint16Array;
+
+  backgroundColor?: Color1D | Color3D | Color4D;
 }
